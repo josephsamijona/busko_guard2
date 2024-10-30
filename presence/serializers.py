@@ -2,6 +2,8 @@
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.utils import timezone
+from .nfc_utils import write_card_uid
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
     PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
@@ -189,3 +191,53 @@ class LogEntrySerializer(serializers.ModelSerializer):
             'user_agent',
         ]
         read_only_fields = ['id', 'user', 'action', 'timestamp', 'ip_address', 'user_agent']
+        
+class NFCCardSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    user_full_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = NFCCard
+        fields = [
+            'id',
+            'user',
+            'user_full_name',
+            'card_uid',
+            'status',
+            'issue_date',
+            'expiry_date',
+            'last_used',
+            'is_active',
+            'access_level',
+            'security_hash',
+            'notes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'user_full_name', 'security_hash']
+
+    def get_user_full_name(self, obj):
+        return obj.user.get_full_name()
+
+    def validate_expiry_date(self, value):
+        if value < timezone.now().date():
+            raise serializers.ValidationError("La date d'expiration ne peut pas être dans le passé.")
+        return value
+
+    def create(self, validated_data):
+        # Générer le security_hash, qui peut être un hash de card_uid et d'une clé secrète
+        card_uid = validated_data.get('card_uid')
+        security_hash = self.generate_security_hash(card_uid)
+        validated_data['security_hash'] = security_hash
+
+        # Écrire le card_uid sur la carte physique
+        success, message = write_card_uid(card_uid)
+        if not success:
+            raise serializers.ValidationError({"card_uid": f"Échec de l'écriture sur la carte : {message}"})
+
+        return super().create(validated_data)
+
+    def generate_security_hash(self, card_uid):
+        import hashlib
+        secret = "votre_clé_secrète"
+        return hashlib.sha256((card_uid + secret).encode('utf-8')).hexdigest()

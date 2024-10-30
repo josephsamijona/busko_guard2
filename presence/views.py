@@ -1,6 +1,7 @@
 # core/views.py
 
 from rest_framework import viewsets, permissions, status
+
 from django.contrib.auth.models import User
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
@@ -17,7 +18,8 @@ from .serializers import (
     LoginAttemptSerializer,
     UserSessionSerializer,
     PasswordResetSerializer,
-    LogEntrySerializer
+    LogEntrySerializer,
+    NFCCardSerializer
 )
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -159,3 +161,19 @@ class LogEntryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAdminUser]
     filterset_fields = ['user', 'action', 'ip_address']
     search_fields = ['user__username', 'action', 'ip_address', 'user_agent']
+    
+class NFCCardViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les cartes NFC.
+    """
+    queryset = NFCCard.objects.all()
+    serializer_class = NFCCardSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filterset_fields = ['status', 'is_active', 'user__username']
+    search_fields = ['card_uid', 'user__username', 'user__first_name', 'user__last_name']
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_update(self, serializer):
+        serializer.save()
