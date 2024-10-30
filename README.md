@@ -12,7 +12,7 @@
 </div>
 
 <div align="center">
-  <img src="/api/placeholder/800/400" alt="BuskoGuard Banner" />
+  <img src="busko_guard_logo.png" alt="BuskoGuard Banner" />
 </div>
 
 <a name="fr"></a>
