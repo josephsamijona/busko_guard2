@@ -1,0 +1,74 @@
+# Django et Django REST framework
+Django
+djangorestframework
+django-cors-headers
+djangorestframework-simplejwt
+
+# Gestion des variables d'environnement
+python-dotenv
+python-decouple
+
+# Base de données
+mysqlclient
+
+# NFC et Smart Card
+pyscard
+nfcpy
+#python-nfc
+pyusb
+
+# Sécurité et Authentification
+django-guardian
+django-oauth-toolkit
+
+# Outils de développement
+django-debug-toolbar
+black
+flake8
+isort
+
+# Documentation API
+drf-yasg
+coreapi
+
+# Gestion des tâches et background jobs
+celery
+redis
+
+# Testing
+pytest
+pytest-django
+coverage
+
+# Logging et Monitoring
+sentry-sdk
+
+# Utils
+Pillow
+pandas
+openpyxl
+termcolor 
+asciimatics 
+pytest 
+pytest-django 
+coverage
+django-filter
+django_celery_beat
+django_celery_results
+djangorestframework-simplejwt 
+djoser 
+drf-yasg 
+django-cors-headers 
+django-filter
+django-rest-swagger
+setuptools
+
+# Authentification et sécurité
+
+pyotp
+qrcode
+django-user-sessions
+django-axes
+
+django-rest-knox
+pyscard
