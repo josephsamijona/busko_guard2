@@ -26,6 +26,8 @@ from .serializers import (
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from pythonping import ping           # Ajoutez cette ligne
+from django.utils import timezone      # Assurez-vous que timezone est importé
 class IsAdminOrReadOnly(permissions.BasePermission):
     """
     Permet uniquement aux utilisateurs admin de modifier, tout le monde peut lire.
@@ -188,28 +190,37 @@ class NFCReaderViewSet(viewsets.ModelViewSet):
     search_fields = ['identifier', 'name', 'location', 'ip_address', 'firmware_version']
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
-    def ping(self, request, pk=None):
+    def ping_reader(self, request, pk=None):
         """
         Action personnalisée pour pinger le lecteur NFC et mettre à jour son statut.
         """
         reader = self.get_object()
         ip = reader.ip_address
         if not ip:
-            return Response({'error': 'Adresse IP non définie pour ce lecteur.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Adresse IP non définie pour ce lecteur.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
-            # Utilisation de ping pour vérifier la connectivité
-            response = subprocess.run(['ping', '-n', '1', ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if response.returncode == 0:
+            response = ping(ip, count=1, timeout=2)
+            if response.success():
                 reader.is_online = True
                 reader.status = NFCReader.ReaderStatus.ACTIVE
             else:
                 reader.is_online = False
                 reader.status = NFCReader.ReaderStatus.ERROR
+            reader.last_online = timezone.now()
             reader.save()
-            return Response({'is_online': reader.is_online, 'status': reader.status}, status=status.HTTP_200_OK)
+            return Response(
+                {'is_online': reader.is_online, 'status': reader.status},
+                status=status.HTTP_200_OK
+            )
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class AccessPointViewSet(viewsets.ModelViewSet):
     """
