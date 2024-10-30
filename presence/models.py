@@ -903,12 +903,12 @@ class LoginAttempt(TimeStampedModel):
     class Meta:
         verbose_name = _("Tentative de connexion")
         verbose_name_plural = _("Tentatives de connexion")
-        ordering = ['-timestamp']
+        ordering = ['-created_at']  # Utilisez 'created_at' ici
 
     def __str__(self):
         status = "Succès" if self.success else "Échec"
         user_str = self.user.username if self.user else "Utilisateur inconnu"
-        return f"{user_str} - {status} - {self.ip_address} à {self.timestamp}"
+        return f"{user_str} - {status} - {self.ip_address} à {self.created_at}"
     
 class UserSession(TimeStampedModel):
     """Suit et gère les sessions actives des utilisateurs."""

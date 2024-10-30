@@ -4,7 +4,7 @@ from django.urls import path, include
 from rest_framework import routers
 from .views import (
     DepartmentViewSet, UserViewSet, UserProfileViewSet,
-    LoginAttemptViewSet, UserSessionViewSet, PasswordResetViewSet, LogEntryViewSet
+    LoginAttemptViewSet, UserSessionViewSet, PasswordResetViewSet, LogEntryViewSet,NFCCardViewSet
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -19,6 +19,7 @@ router.register(r'login-attempts', LoginAttemptViewSet, basename='loginattempt')
 router.register(r'user-sessions', UserSessionViewSet, basename='usersession')
 router.register(r'password-resets', PasswordResetViewSet, basename='passwordreset')
 router.register(r'log-entries', LogEntryViewSet, basename='logentry')
+router.register(r'nfc-cards', NFCCardViewSet, basename='nfccard')
 
 urlpatterns = [
     path('', include(router.urls)),

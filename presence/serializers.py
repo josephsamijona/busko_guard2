@@ -138,12 +138,11 @@ class LoginAttemptSerializer(serializers.ModelSerializer):
             'id',
             'user',
             'ip_address',
-            'timestamp',
             'success',
+            'created_at',  # Remplacez 'timestamp' par 'created_at'
             'user_agent',
         ]
-        read_only_fields = ['id', 'user', 'timestamp', 'success', 'user_agent']
-
+        read_only_fields = ['id', 'user', 'ip_address', 'success', 'created_at', 'user_agent']
 
 class UserSessionSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
@@ -160,8 +159,7 @@ class UserSessionSerializer(serializers.ModelSerializer):
             'created_at',
             'is_active',
         ]
-        read_only_fields = ['id', 'user', 'session_key', 'ip_address', 'user_agent', 'last_activity', 'created_at']
-
+        read_only_fields = ['id', 'user', 'session_key', 'ip_address', 'user_agent', 'last_activity', 'created_at', 'is_active']
 
 class PasswordResetSerializer(serializers.ModelSerializer):
     class Meta:
@@ -176,7 +174,6 @@ class PasswordResetSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'user', 'token', 'created_at', 'used', 'ip_address']
 
-
 class LogEntrySerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
 
@@ -186,11 +183,11 @@ class LogEntrySerializer(serializers.ModelSerializer):
             'id',
             'user',
             'action',
-            'timestamp',
+            'created_at',  # Remplacez 'timestamp' par 'created_at'
             'ip_address',
             'user_agent',
         ]
-        read_only_fields = ['id', 'user', 'action', 'timestamp', 'ip_address', 'user_agent']
+        read_only_fields = ['id', 'user', 'action', 'created_at', 'ip_address', 'user_agent']
         
 class NFCCardSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())

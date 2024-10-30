@@ -163,14 +163,13 @@ class AccessRuleAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('created_at', 'updated_at')
     filter_horizontal = ('departments',)
-    
 @admin.register(LoginAttempt)
 class LoginAttemptAdmin(admin.ModelAdmin):
-    list_display = ('user', 'ip_address', 'success', 'timestamp', 'user_agent')
+    list_display = ('user', 'ip_address', 'success', 'created_at', 'user_agent')  # Remplacez 'timestamp' par 'created_at'
     search_fields = ('user__username', 'ip_address', 'user_agent')
-    list_filter = ('success', 'timestamp')
-    ordering = ('-timestamp',)
-    readonly_fields = ('user', 'ip_address', 'success', 'timestamp', 'user_agent')
+    list_filter = ('success', 'created_at')  # Remplacez 'timestamp' par 'created_at'
+    ordering = ('-created_at',)  # Remplacez 'timestamp' par 'created_at'
+    readonly_fields = ('user', 'ip_address', 'success', 'created_at', 'user_agent')  # Remplacez 'timestamp' par 'created_at'
 
 @admin.register(UserSession)
 class UserSessionAdmin(admin.ModelAdmin):

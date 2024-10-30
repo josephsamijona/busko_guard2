@@ -106,12 +106,11 @@ class LoginAttemptViewSet(viewsets.ReadOnlyModelViewSet):
     API endpoint pour visualiser les tentatives de connexion.
     Seuls les administrateurs peuvent accéder à cette vue.
     """
-    queryset = LoginAttempt.objects.all().order_by('-timestamp')
+    queryset = LoginAttempt.objects.all().order_by('-created_at')  # Utilisez 'created_at' ici
     serializer_class = LoginAttemptSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     filterset_fields = ['user', 'success', 'ip_address']
     search_fields = ['user__username', 'ip_address', 'user_agent']
-
 
 class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -120,11 +119,11 @@ class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = UserSession.objects.filter(is_active=True).order_by('-last_activity')
     serializer_class = UserSessionSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     filterset_fields = ['user', 'ip_address', 'is_active']
     search_fields = ['user__username', 'ip_address', 'user_agent']
 
-    @action(detail=True, methods=['delete'], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=['delete'], permission_classes=[permissions.IsAdminUser])
     def terminate(self, request, pk=None):
         """
         Terminer une session utilisateur spécifique.
@@ -137,7 +136,6 @@ class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-
 class PasswordResetViewSet(viewsets.ModelViewSet):
     """
     API endpoint pour gérer les demandes de réinitialisation de mot de passe.
@@ -146,22 +144,21 @@ class PasswordResetViewSet(viewsets.ModelViewSet):
     """
     queryset = PasswordReset.objects.all().order_by('-created_at')
     serializer_class = PasswordResetSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     filterset_fields = ['user', 'used', 'ip_address']
     search_fields = ['user__username', 'user__email', 'ip_address']
-
 
 class LogEntryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint pour visualiser les logs des opérations.
     Seuls les administrateurs peuvent accéder à cette vue.
     """
-    queryset = LogEntry.objects.all().order_by('-timestamp')
+    queryset = LogEntry.objects.all().order_by('-created_at')  # Utilisez 'created_at' ici
     serializer_class = LogEntrySerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     filterset_fields = ['user', 'action', 'ip_address']
     search_fields = ['user__username', 'action', 'ip_address', 'user_agent']
-    
+
 class NFCCardViewSet(viewsets.ModelViewSet):
     """
     API endpoint pour gérer les cartes NFC.

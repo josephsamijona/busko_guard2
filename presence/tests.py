@@ -3,8 +3,9 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
-from .models import Department, UserProfile, LoginAttempt, UserSession, PasswordReset, LogEntry
+from .models import Department, UserProfile, LoginAttempt, UserSession, PasswordReset, LogEntry, NFCCard
 from rest_framework import status
+from unittest.mock import patch
 from django.urls import reverse
 from rest_framework_simplejwt.tokens import RefreshToken
 class UserProfileAPITests(TestCase):
@@ -429,3 +430,89 @@ class SecurityAuditAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user_session.refresh_from_db()
         self.assertEqual(str(self.user_session.last_activity), '2024-04-27T13:00:00Z')
+        
+class NFCCardAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin_user = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='adminpass'
+        )
+        self.regular_user = User.objects.create_user(
+            username='user1',
+            email='user1@example.com',
+            password='userpass'
+        )
+        self.department = Department.objects.create(
+            name='IT',
+            code='IT01',
+            manager=self.admin_user
+        )
+        self.admin_profile = UserProfile.objects.create(
+            user=self.admin_user,
+            matricule='BG20230001',
+            department=self.department,
+            role='ADMIN'
+        )
+        self.regular_profile = UserProfile.objects.create(
+            user=self.regular_user,
+            matricule='BG20230002',
+            department=self.department,
+            role='STAFF'
+        )
+
+    def authenticate(self, user):
+        self.client.force_authenticate(user=user)
+
+    @patch('core.serializers.write_card_uid')
+    def test_admin_can_create_nfc_card(self, mock_write_card_uid):
+        mock_write_card_uid.return_value = (True, "UID de la carte écrit avec succès.")
+        self.authenticate(self.admin_user)
+        url = reverse('nfccard-list')
+        data = {
+            'user': self.regular_user.id,
+            'card_uid': 'ABCDEF123456',
+            'expiry_date': '2025-12-31',
+            'access_level': 1,
+            'notes': 'Carte de test',
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(NFCCard.objects.count(), 1)
+        nfccard = NFCCard.objects.get(card_uid='ABCDEF123456')
+        self.assertEqual(nfccard.user, self.regular_user)
+        self.assertEqual(nfccard.status, 'ACTIVE')
+        self.assertTrue(mock_write_card_uid.called)
+
+    @patch('core.serializers.write_card_uid')
+    def test_regular_user_cannot_create_nfc_card(self, mock_write_card_uid):
+        self.authenticate(self.regular_user)
+        url = reverse('nfccard-list')
+        data = {
+            'user': self.regular_user.id,
+            'card_uid': 'ABCDEF123456',
+            'expiry_date': '2025-12-31',
+            'access_level': 1,
+            'notes': 'Carte de test',
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(mock_write_card_uid.called)
+
+    @patch('core.serializers.write_card_uid')
+    def test_create_nfc_card_fails_if_write_fails(self, mock_write_card_uid):
+        mock_write_card_uid.return_value = (False, "Échec de l'écriture de l'UID de la carte.")
+        self.authenticate(self.admin_user)
+        url = reverse('nfccard-list')
+        data = {
+            'user': self.regular_user.id,
+            'card_uid': 'ABCDEF123456',
+            'expiry_date': '2025-12-31',
+            'access_level': 1,
+            'notes': 'Carte de test',
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Échec de l\'écriture sur la carte', str(response.data))
+        self.assertFalse(NFCCard.objects.exists())
