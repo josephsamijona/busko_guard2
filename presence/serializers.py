@@ -357,3 +357,26 @@ class AccessRuleSerializer(serializers.ModelSerializer):
             if data['start_date'] >= data['end_date']:
                 raise serializers.ValidationError("La date de début doit être antérieure à la date de fin.")
         return data
+
+class AccessPointSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AccessPoint
+        fields = ['id', 'name', 'description']
+
+class AttendanceRecordSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    location = AccessPointSerializer(read_only=True)
+    
+    class Meta:
+        model = AttendanceRecord
+        fields = [
+            'id',
+            'user',
+            'timestamp',
+            'action_type',
+            'location',
+            'notes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'user', 'timestamp', 'location', 'notes', 'created_at', 'updated_at']

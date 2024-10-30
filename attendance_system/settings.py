@@ -302,3 +302,25 @@ SWAGGER_SETTINGS = {
     }
 }
 
+# transport/settings.py
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'attendance_system.log',
+        },
+    },
+    'loggers': {
+        'presence': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

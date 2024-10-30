@@ -26,7 +26,8 @@ from .serializers import (
     AccessPointSerializer,
     NFCReaderSerializer,
     AttendanceRuleSerializer,
-    AccessRuleSerializer
+    AccessRuleSerializer,
+    AttendanceRecordSerializer
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
@@ -367,3 +368,15 @@ def access_point_access(request, access_point_id):
         )
         logger.warning(f"Accès refusé pour {user.username} au point d'accès {access_point.name} à {timezone.now()}")
         return Response({'error': 'Accès refusé selon les règles d\'accès.'}, status=status.HTTP_403_FORBIDDEN)
+    
+class AttendanceRecordViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint pour visualiser les enregistrements de présence.
+    Seuls les administrateurs et les managers peuvent accéder à ces données.
+    """
+    queryset = AttendanceRecord.objects.select_related('user', 'location').all()
+    serializer_class = AttendanceRecordSerializer
+    permission_classes = [permissions.IsAdminUser | IsManager]
+    filterset_fields = ['user', 'action_type', 'location']
+    search_fields = ['user__username', 'location__name', 'notes']
+    ordering = ['-timestamp']
