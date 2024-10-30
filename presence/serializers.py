@@ -284,3 +284,76 @@ class AccessPointSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        
+class AttendanceRuleSerializer(serializers.ModelSerializer):
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all()
+    )
+    
+    class Meta:
+        model = AttendanceRule
+        fields = [
+            'id',
+            'name',
+            'department',
+            'start_time',
+            'end_time',
+            'grace_period_minutes',
+            'minimum_hours',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        if data['start_time'] >= data['end_time']:
+            raise serializers.ValidationError("L'heure de début doit être antérieure à l'heure de fin.")
+        if data['grace_period_minutes'] < 0:
+            raise serializers.ValidationError("La période de grâce ne peut pas être négative.")
+        if data['minimum_hours'] <= 0:
+            raise serializers.ValidationError("Les heures requises doivent être supérieures à zéro.")
+        return data
+# presence/serializers.py
+
+# presence/serializers.py
+
+class AccessRuleSerializer(serializers.ModelSerializer):
+    access_point = serializers.PrimaryKeyRelatedField(
+        queryset=AccessPoint.objects.all()
+    )
+    departments = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        many=True
+    )
+    allowed_users = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        many=True,
+        required=False
+    )
+    
+    class Meta:
+        model = AccessRule
+        fields = [
+            'id',
+            'name',
+            'rule_type',
+            'access_point',
+            'priority',
+            'conditions',
+            'is_active',
+            'start_date',
+            'end_date',
+            'departments',
+            'allowed_users',
+            'description',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        if data.get('start_date') and data.get('end_date'):
+            if data['start_date'] >= data['end_date']:
+                raise serializers.ValidationError("La date de début doit être antérieure à la date de fin.")
+        return data
