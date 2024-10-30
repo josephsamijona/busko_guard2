@@ -476,6 +476,9 @@ class Notification(TimeStampedModel):
         ('missing_presence', 'Présence Manquante'),
         ('anomaly', 'Anomalie'),
         ('general', 'Général'),
+        ('early_departure', 'Abandon de Poste'),
+        ('missed_scan', 'Oubli de Scan'),
+        ('extended_break', 'Pause Prolongée'),
     ]
 
     recipient = models.ForeignKey(
@@ -496,10 +499,32 @@ class Notification(TimeStampedModel):
         choices=NOTIFICATION_TYPES,
         verbose_name=_("Type de notification")
     )
+    approved_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='approved_notifications',
+        verbose_name=_("Approuvé par")
+    )
+    start_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Date de début")
+    )
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name=_("Date de fin")
+    )
+    comments = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name=_("Commentaires")
+    )
 
     def __str__(self):
-        return f"Notification à {self.recipient} - {self.notification_type}"
-
+        return f"Notification à {self.recipient} - {self.get_notification_type_display()}"
 # Modèle LogEntry
 class LogEntry(TimeStampedModel):
     """Enregistre les opérations effectuées dans le système pour traçabilité et sécurité"""

@@ -1,0 +1,13 @@
+# presence/templates/emails/leave_rejected.txt
+
+Bonjour {{ user.first_name }},
+
+Nous vous informons que votre demande de congé du {{ start_date }} au {{ end_date }} a été rejetée.
+
+Raison du rejet : {{ comments }}
+
+Si vous avez des questions, n'hésitez pas à contacter votre responsable.
+
+Cordialement,
+{{ approver.first_name }} {{ approver.last_name }}
+Manager, {{ department.name }}

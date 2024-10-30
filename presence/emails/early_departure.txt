@@ -1,0 +1,10 @@
+# presence/templates/emails/early_departure.txt
+
+Bonjour {{ user.first_name }},
+
+Nous avons constaté que vous avez quitté le poste avant l'heure prévue aujourd'hui à {{ actual_departure_time }}.
+
+Si cela était intentionnel, veuillez contacter votre responsable.
+
+Cordialement,
+L'équipe de Gestion des Présences

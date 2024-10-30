@@ -1,0 +1,10 @@
+# presence/templates/emails/missed_scan.txt
+
+Bonjour {{ user.first_name }},
+
+Nous avons remarqué que vous avez quitté le poste sans scanner votre carte NFC aujourd'hui.
+
+Veuillez vous assurer de scanner votre carte lors de vos entrées et sorties pour un suivi précis de votre présence.
+
+Cordialement,
+L'équipe de Gestion des Présences

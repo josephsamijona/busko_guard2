@@ -380,3 +380,78 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'user', 'timestamp', 'location', 'notes', 'created_at', 'updated_at']
+        
+        
+class LeaveRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Leave
+        fields = [
+            'id',
+            'leave_type',
+            'start_date',
+            'end_date',
+            'reason',
+            'status',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'status', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        leave = Leave.objects.create(user=user, **validated_data)
+        return leave
+
+    def validate(self, data):
+        if data['start_date'] > data['end_date']:
+            raise serializers.ValidationError("La date de début doit être antérieure ou égale à la date de fin.")
+        return data
+    
+# presence/serializers.py
+
+class LeaveApprovalSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    approved_by = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = Leave
+        fields = [
+            'id',
+            'user',
+            'leave_type',
+            'start_date',
+            'end_date',
+            'reason',
+            'status',
+            'approved_by',
+            'approval_date',
+            'comments',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'user',
+            'leave_type',
+            'start_date',
+            'end_date',
+            'reason',
+            'approved_by',
+            'approval_date',
+            'created_at',
+            'updated_at',
+        ]
+
+    def update(self, instance, validated_data):
+        request = self.context['request']
+        instance.status = validated_data.get('status', instance.status)
+        instance.comments = validated_data.get('comments', instance.comments)
+        instance.approved_by = request.user
+        instance.approval_date = timezone.now()
+        instance.save()
+        return instance
+
+    def validate(self, data):
+        if data.get('status') not in [Leave.Status.APPROVED, Leave.Status.REJECTED]:
+            raise serializers.ValidationError("Le statut doit être 'APPROVED' ou 'REJECTED'.")
+        return data

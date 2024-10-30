@@ -1,0 +1,10 @@
+# presence/templates/emails/missing_presence.txt
+
+Bonjour {{ user.first_name }},
+
+Nous avons constaté une absence non justifiée le {{ date }}.
+
+Si cette absence est justifiée, veuillez contacter votre responsable ou le service RH dès que possible.
+
+Cordialement,
+L'équipe de Gestion des Présences

@@ -1,9 +1,13 @@
 # core/views.py
 
-from datetime import datetime
+from datetime import date, datetime
+from datetime import datetime, timedelta
+from django.db.models import Q
+
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import viewsets, permissions, status
+from presence.attendaceutils import calculate_attendance
 import subprocess
 from django.contrib.auth.models import User
 from .models import (
@@ -32,7 +36,9 @@ from .serializers import (
     NFCReaderSerializer,
     AttendanceRuleSerializer,
     AccessRuleSerializer,
-    AttendanceRecordSerializer
+    AttendanceRecordSerializer,
+    LeaveApprovalSerializer,
+    LeaveRequestSerializer
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
@@ -387,3 +393,106 @@ class AttendanceRecordViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ['user', 'action_type', 'location']
     search_fields = ['user__username', 'location__name', 'notes']
     ordering = ['-timestamp']
+    
+class LeaveRequestViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint permettant aux utilisateurs de créer et consulter leurs demandes de congé.
+    """
+    serializer_class = LeaveRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Leave.objects.filter(user=self.request.user).order_by('-created_at')
+    
+class LeaveApprovalViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint permettant aux responsables d'approuver ou de rejeter les demandes de congé.
+    """
+    serializer_class = LeaveApprovalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsManager]
+
+    def get_queryset(self):
+        # Le responsable voit les demandes des utilisateurs de son département
+        department = self.request.user.profile.department
+        return Leave.objects.filter(user__profile__department=department, status=Leave.Status.PENDING)
+
+    def update(self, request, *args, **kwargs):
+        # Limiter les champs modifiables
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(serializer.data)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def daily_attendance_report(request, user_id, date_str):
+    """
+    Génère un rapport de présence quotidien pour un utilisateur donné.
+    
+    Args:
+        user_id (int): L'ID de l'utilisateur.
+        date_str (str): La date au format 'YYYY-MM-DD'.
+    
+    Returns:
+        Response: Un rapport JSON contenant la présence de l'utilisateur.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'Utilisateur non trouvé.'}, status=404)
+    
+    try:
+        date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return Response({'error': 'Format de date invalide. Utilisez YYYY-MM-DD.'}, status=400)
+    
+    attendance = calculate_attendance(user, date)
+    
+    return Response(attendance, status=200)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def monthly_attendance_report(request, user_id, year, month):
+    """
+    Génère un rapport de présence mensuel pour un utilisateur donné.
+    
+    Args:
+        user_id (int): L'ID de l'utilisateur.
+        year (int): L'année du rapport.
+        month (int): Le mois du rapport.
+    
+    Returns:
+        Response: Un rapport JSON contenant la présence de l'utilisateur pour chaque jour du mois.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'Utilisateur non trouvé.'}, status=404)
+    
+    try:
+        first_day = date(year, month, 1)
+    except ValueError:
+        return Response({'error': 'Date invalide.'}, status=400)
+    
+    # Calculer le dernier jour du mois
+    if month == 12:
+        last_day = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last_day = date(year, month + 1, 1) - timedelta(days=1)
+    
+    current_date = first_day
+    report = []
+    
+    while current_date <= last_day:
+        attendance = calculate_attendance(user, current_date)
+        report.append(attendance)
+        current_date += timedelta(days=1)
+    
+    return Response({
+        'user': user.username,
+        'month': f"{year}-{month:02d}",
+        'attendance_report': report
+    }, status=200)
