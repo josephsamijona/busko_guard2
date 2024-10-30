@@ -6,6 +6,9 @@ from django.contrib.auth.models import User
 from .models import LoginAttempt, UserSession, LogEntry, PasswordReset
 from django.utils import timezone
 
+
+
+
 def get_client_ip(request):
     """Fonction utilitaire pour obtenir l'adresse IP du client."""
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')

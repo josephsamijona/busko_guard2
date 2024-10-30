@@ -1,7 +1,7 @@
 # core/views.py
 
 from rest_framework import viewsets, permissions, status
-
+import subprocess
 from django.contrib.auth.models import User
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
@@ -19,7 +19,9 @@ from .serializers import (
     UserSessionSerializer,
     PasswordResetSerializer,
     LogEntrySerializer,
-    NFCCardSerializer
+    NFCCardSerializer,
+    AccessPointSerializer,
+    NFCReaderSerializer
 )
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -174,3 +176,47 @@ class NFCCardViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         serializer.save()
+        
+class NFCReaderViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les lecteurs NFC.
+    """
+    queryset = NFCReader.objects.all()
+    serializer_class = NFCReaderSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filterset_fields = ['status', 'reader_type', 'is_online']
+    search_fields = ['identifier', 'name', 'location', 'ip_address', 'firmware_version']
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def ping(self, request, pk=None):
+        """
+        Action personnalisée pour pinger le lecteur NFC et mettre à jour son statut.
+        """
+        reader = self.get_object()
+        ip = reader.ip_address
+        if not ip:
+            return Response({'error': 'Adresse IP non définie pour ce lecteur.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Utilisation de ping pour vérifier la connectivité
+            response = subprocess.run(['ping', '-n', '1', ip], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if response.returncode == 0:
+                reader.is_online = True
+                reader.status = NFCReader.ReaderStatus.ACTIVE
+            else:
+                reader.is_online = False
+                reader.status = NFCReader.ReaderStatus.ERROR
+            reader.save()
+            return Response({'is_online': reader.is_online, 'status': reader.status}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class AccessPointViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les points d'accès.
+    """
+    queryset = AccessPoint.objects.all()
+    serializer_class = AccessPointSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filterset_fields = ['is_active', 'required_access_level']
+    search_fields = ['name', 'description', 'reader__name']

@@ -238,3 +238,49 @@ class NFCCardSerializer(serializers.ModelSerializer):
         import hashlib
         secret = "votre_clé_secrète"
         return hashlib.sha256((card_uid + secret).encode('utf-8')).hexdigest()
+
+class NFCReaderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NFCReader
+        fields = [
+            'id',
+            'identifier',
+            'name',
+            'location',
+            'reader_type',
+            'status',
+            'ip_address',
+            'last_maintenance',
+            'next_maintenance',
+            'firmware_version',
+            'is_online',
+            'last_online',
+            'configuration',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'is_online', 'last_online', 'created_at', 'updated_at']
+
+class AccessPointSerializer(serializers.ModelSerializer):
+    reader = serializers.PrimaryKeyRelatedField(queryset=NFCReader.objects.all())
+    allowed_departments = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        many=True
+    )
+
+    class Meta:
+        model = AccessPoint
+        fields = [
+            'id',
+            'name',
+            'description',
+            'reader',
+            'is_active',
+            'required_access_level',
+            'allowed_departments',
+            'schedule',
+            'special_rules',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
