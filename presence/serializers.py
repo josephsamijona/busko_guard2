@@ -514,3 +514,12 @@ class ReportScheduleSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'next_run', 'last_run', 'created_at', 'updated_at']
+
+# presence/serializers.py
+
+class PresenceStatisticsSerializer(serializers.Serializer):
+    total_present = serializers.IntegerField()
+    total_absent = serializers.IntegerField()
+    total_late = serializers.IntegerField()
+    total_early_departure = serializers.IntegerField()
+    # Ajoutez d'autres champs si nécessaire

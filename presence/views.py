@@ -1,5 +1,5 @@
 # core/views.py
-
+from rest_framework.views import APIView
 from datetime import date, datetime
 from datetime import datetime, timedelta
 from django.db.models import Q
@@ -38,7 +38,9 @@ from .serializers import (
     AccessRuleSerializer,
     AttendanceRecordSerializer,
     LeaveApprovalSerializer,
-    LeaveRequestSerializer, NotificationUpdateSerializer,NotificationSerializer,ReportSerializer,ReportScheduleSerializer
+    LeaveRequestSerializer, NotificationUpdateSerializer,NotificationSerializer,ReportSerializer,ReportScheduleSerializer,
+    PresenceStatisticsSerializer
+    
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
@@ -589,3 +591,51 @@ class ReportScheduleViewSet(viewsets.ModelViewSet):
     queryset = ReportSchedule.objects.all()
     serializer_class = ReportScheduleSerializer
     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+    
+    
+class PresenceStatisticsView(APIView):
+    """
+    Vue API pour obtenir des statistiques de présence.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        # Définir la période pour les statistiques (par exemple, le mois en cours)
+        today = date.today()
+        start_date = today.replace(day=1)
+        # Calculer le dernier jour du mois
+        next_month = start_date + timedelta(days=32)
+        end_date = next_month.replace(day=1) - timedelta(days=1)
+
+        # Calculer les statistiques
+        total_present = AttendanceRecord.objects.filter(
+            action_type=AttendanceRecord.Status.ARRIVAL,
+            timestamp__date__range=(start_date, end_date)
+        ).values('user').distinct().count()
+
+        total_absent = User.objects.exclude(
+            attendance_records__action_type=AttendanceRecord.Status.ARRIVAL,
+            attendance_records__timestamp__date__range=(start_date, end_date)
+        ).count()
+
+        total_late = AttendanceRecord.objects.filter(
+            action_type=AttendanceRecord.Status.ARRIVAL,
+            timestamp__time__gt=timezone.datetime.strptime('09:00', '%H:%M').time(),
+            timestamp__date__range=(start_date, end_date)
+        ).count()
+
+        total_early_departure = AttendanceRecord.objects.filter(
+            action_type=AttendanceRecord.Status.DEPARTURE,
+            timestamp__time__lt=timezone.datetime.strptime('17:00', '%H:%M').time(),
+            timestamp__date__range=(start_date, end_date)
+        ).count()
+
+        statistics = {
+            'total_present': total_present,
+            'total_absent': total_absent,
+            'total_late': total_late,
+            'total_early_departure': total_early_departure,
+        }
+
+        serializer = PresenceStatisticsSerializer(statistics)
+        return Response(serializer.data)

@@ -302,3 +302,42 @@ def generate_pdf_content(dataframe):
         line = ', '.join([f"{key}: {value}" for key, value in row.items()])
         lines.append(line)
     return lines
+
+@shared_task
+def schedule_reports():
+    """
+    Génère les rapports planifiés selon leur fréquence.
+    """
+    now = timezone.now()
+    schedules = ReportSchedule.objects.filter(is_active=True, next_run__lte=now)
+    
+    for schedule in schedules:
+        report = schedule.report
+        if report.status == 'generating':
+            continue  # Éviter de lancer une tâche si un rapport est déjà en cours de génération
+        
+        # Mettre à jour le statut du rapport
+        report.status = 'generating'
+        report.save()
+        
+        # Lancer la tâche de génération du rapport
+        generate_report_task.delay(report.id)
+        
+        # Mettre à jour la prochaine exécution en fonction de la fréquence
+        if schedule.frequency == ReportSchedule.Frequency.DAILY:
+            next_run = schedule.next_run + timedelta(days=1)
+        elif schedule.frequency == ReportSchedule.Frequency.WEEKLY:
+            next_run = schedule.next_run + timedelta(weeks=1)
+        elif schedule.frequency == ReportSchedule.Frequency.MONTHLY:
+            next_run = schedule.next_run + timedelta(days=30)  # Approximatif
+        elif schedule.frequency == ReportSchedule.Frequency.QUARTERLY:
+            next_run = schedule.next_run + timedelta(days=90)  # Approximatif
+        elif schedule.frequency == ReportSchedule.Frequency.ANNUAL:
+            next_run = schedule.next_run + timedelta(days=365)  # Approximatif
+        else:
+            continue  # Fréquence inconnue
+        
+        # Mettre à jour la planification
+        schedule.next_run = next_run
+        schedule.last_run = now
+        schedule.save()

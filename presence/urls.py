@@ -17,7 +17,15 @@ from .views import (
     AccessRuleViewSet,
     AttendanceRecordViewSet,
     access_point_access,
-    LeaveRequestViewSet, LeaveApprovalViewSet, daily_attendance_report, monthly_attendance_report,NotificationViewSet,LeaveApprovalViewSetupnotif
+    LeaveRequestViewSet, 
+    LeaveApprovalViewSet, daily_attendance_report, monthly_attendance_report,
+    NotificationViewSet,LeaveApprovalViewSetupnotif,
+    ReportScheduleViewSet,
+    ReportViewSet, PresenceStatisticsView
+    
+
+    
+    
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -42,6 +50,8 @@ router.register(r'leave-requests', LeaveRequestViewSet, basename='leaverequest')
 router.register(r'leave-approvals', LeaveApprovalViewSet, basename='leaveapproval')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'LeaveApprovalViewSetup', LeaveApprovalViewSetupnotif, basename='LeaveApprovalViewSetup')
+router.register(r'reports', ReportViewSet, basename='report')
+router.register(r'report-schedules', ReportScheduleViewSet, basename='reportschedule')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -50,4 +60,5 @@ urlpatterns = [
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('attendance-report/<int:user_id>/<str:date_str>/', daily_attendance_report, name='daily_attendance_report'),
     path('monthly-attendance-report/<int:user_id>/<int:year>/<int:month>/', monthly_attendance_report, name='monthly_attendance_report'),
+    path('statistics/presence/', PresenceStatisticsView.as_view(), name='presence_statistics'),
 ]
