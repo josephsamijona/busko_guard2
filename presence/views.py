@@ -12,6 +12,11 @@ from .models import (
     NFCReader, AccessPoint, AccessRule,
     LoginAttempt, UserSession, PasswordReset
 )
+# presence/views.py
+
+from presence.nfc_utils import read_card_uid
+
+from .permissions import IsManager 
 from .serializers import (
     DepartmentSerializer, 
     UserSerializer, 
@@ -273,25 +278,37 @@ def access_point_access(request, access_point_id):
     """
     access_point = get_object_or_404(AccessPoint, id=access_point_id)
     
-    card_uid = request.data.get('card_uid')
+    # Lire l'UID de la carte depuis le secteur 5
+    card_uid, message = read_card_uid()
     if not card_uid:
-        return Response({'error': 'UID de la carte NFC requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        logger.error(f"Erreur lors de la lecture de la carte : {message}")
+        return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
     
+    # Rechercher la carte NFC dans la base de données
     try:
         card = NFCCard.objects.get(card_uid=card_uid, is_active=True)
     except NFCCard.DoesNotExist:
+        logger.warning(f"Carte NFC non reconnue : UID={card_uid}")
         return Response({'error': 'Carte NFC invalide ou inactive.'}, status=status.HTTP_400_BAD_REQUEST)
     
     user = card.user
+    # Vérifier si l'utilisateur a un profil avec un département associé
+    if not hasattr(user, 'profile') or not user.profile.department:
+        logger.warning(f"L'utilisateur {user.username} n'a pas de département associé.")
+        return Response({'error': 'Utilisateur sans département associé.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Vérifier les règles de présence
     try:
         attendance_rule = AttendanceRule.objects.get(department=user.profile.department, is_active=True)
     except AttendanceRule.DoesNotExist:
+        logger.warning(f"Aucune règle de présence active pour le département {user.profile.department}.")
         return Response({'error': 'Règle de présence non définie pour ce département.'}, status=status.HTTP_400_BAD_REQUEST)
     
     current_time = timezone.now().time()
     
     # Vérifier les horaires de travail
     if not (attendance_rule.start_time <= current_time <= attendance_rule.end_time):
+        logger.info(f"Accès en dehors des heures de travail pour l'utilisateur {user.username}.")
         return Response({'error': 'Accès en dehors des heures de travail.'}, status=status.HTTP_403_FORBIDDEN)
     
     # Vérifier les règles d'accès
@@ -300,9 +317,10 @@ def access_point_access(request, access_point_id):
     access_granted = False
     for rule in access_rules:
         # Vérifier les dates de validité
-        if rule.start_date and timezone.now() < rule.start_date:
+        now = timezone.now()
+        if rule.start_date and now < rule.start_date:
             continue
-        if rule.end_date and timezone.now() > rule.end_date:
+        if rule.end_date and now > rule.end_date:
             continue
         
         # Vérifier les départements autorisés
@@ -314,12 +332,10 @@ def access_point_access(request, access_point_id):
             start = rule.conditions.get('start_time')
             end = rule.conditions.get('end_time')
             if start and end:
-                # Convertir les chaînes en objets time si nécessaire
                 try:
                     start_time = datetime.strptime(start, '%H:%M').time()
                     end_time = datetime.strptime(end, '%H:%M').time()
                 except ValueError:
-                    # Format de temps incorrect
                     continue
                 if not (start_time <= current_time <= end_time):
                     continue
@@ -329,17 +345,9 @@ def access_point_access(request, access_point_id):
                 continue
         elif rule.rule_type == AccessRule.RuleType.TEMPORARY:
             # Implémenter des règles temporaires si nécessaire
-            temporary_conditions = rule.conditions.get('temporary_conditions', {})
-            # Exemple: vérifier une condition spécifique
-            # if not temporary_conditions.get('some_condition'):
-            #     continue
             pass
         elif rule.rule_type == AccessRule.RuleType.SPECIAL:
             # Implémenter des conditions spéciales
-            special_conditions = rule.conditions.get('special_conditions', {})
-            # Exemple: vérifier des flags ou d'autres paramètres
-            # if not special_conditions.get('holiday_access', False):
-            #     continue
             pass
         else:
             continue
@@ -359,7 +367,7 @@ def access_point_access(request, access_point_id):
         logger.info(f"Accès autorisé pour {user.username} au point d'accès {access_point.name} à {timezone.now()}")
         return Response({'status': 'Accès autorisé.'}, status=status.HTTP_200_OK)
     else:
-        # Enregistrer l'échec d'accès (Départ ou autre action selon le contexte)
+        # Enregistrer l'échec d'accès
         AttendanceRecord.objects.create(
             user=user,
             action_type=AttendanceRecord.Status.DEPARTURE,
@@ -368,7 +376,6 @@ def access_point_access(request, access_point_id):
         )
         logger.warning(f"Accès refusé pour {user.username} au point d'accès {access_point.name} à {timezone.now()}")
         return Response({'error': 'Accès refusé selon les règles d\'accès.'}, status=status.HTTP_403_FORBIDDEN)
-    
 class AttendanceRecordViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint pour visualiser les enregistrements de présence.
