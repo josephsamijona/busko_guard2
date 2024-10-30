@@ -8,7 +8,7 @@
 [![Django](https://img.shields.io/badge/Django-4.2-green.svg)](https://www.djangoproject.com/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-orange.svg)](https://www.mysql.com/)
 [![React](https://img.shields.io/badge/React-18.0-blue.svg)](https://reactjs.org/)
-[![License](https://img.shields.io/badge/license-MIT-purple.svg)](https://opensource.org/licenses/MIT)
+
 </div>
 
 <div align="center">
