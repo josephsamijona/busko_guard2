@@ -21,7 +21,7 @@ from .views import (
     LeaveApprovalViewSet, daily_attendance_report, monthly_attendance_report,
     NotificationViewSet,LeaveApprovalViewSetupnotif,
     ReportScheduleViewSet,
-    ReportViewSet, PresenceStatisticsView
+    ReportViewSet, PresenceStatisticsView,TemporaryQRCodeViewSet, display_qr_code, download_qr_code
     
 
     
@@ -52,6 +52,7 @@ router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'LeaveApprovalViewSetup', LeaveApprovalViewSetupnotif, basename='LeaveApprovalViewSetup')
 router.register(r'reports', ReportViewSet, basename='report')
 router.register(r'report-schedules', ReportScheduleViewSet, basename='reportschedule')
+router.register(r'temporary_qr_codes', TemporaryQRCodeViewSet, basename='temporary_qr_code')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -61,4 +62,6 @@ urlpatterns = [
     path('attendance-report/<int:user_id>/<str:date_str>/', daily_attendance_report, name='daily_attendance_report'),
     path('monthly-attendance-report/<int:user_id>/<int:year>/<int:month>/', monthly_attendance_report, name='monthly_attendance_report'),
     path('statistics/presence/', PresenceStatisticsView.as_view(), name='presence_statistics'),
+    path('qr_code_display/', display_qr_code, name='qr_code_display'),
+    path('download_qr_code/', download_qr_code, name='download_qr_code'),
 ]

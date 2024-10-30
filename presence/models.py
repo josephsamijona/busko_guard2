@@ -4,6 +4,8 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from datetime import timedelta
 import uuid
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 import os
@@ -90,6 +92,15 @@ class Department(TimeStampedModel):
         }
 
 # Modèle UserProfile
+def user_profile_image_path(instance, filename):
+    """
+    Génère un chemin unique pour chaque image de profil en utilisant l'UUID.
+    Les images seront stockées dans MEDIA_ROOT/profile_images/user_<id>/<uuid>.<extension>
+    """
+    ext = filename.split('.')[-1]
+    filename = f'{uuid.uuid4()}.{ext}'
+    return os.path.join('profile_images', f'user_{instance.user.id}', filename)
+
 class UserProfile(TimeStampedModel):
     """Extension du modèle User de Django pour les informations supplémentaires"""
 
@@ -110,7 +121,7 @@ class UserProfile(TimeStampedModel):
         verbose_name=_("Matricule")
     )
     department = models.ForeignKey(
-        Department,
+        'Department',  # Si le modèle Department est dans le même fichier, sinon utilisez 'app_name.Department'
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -145,6 +156,12 @@ class UserProfile(TimeStampedModel):
         blank=True,
         null=True,
         verbose_name=_("Téléphone d'urgence")
+    )
+    profile_image = models.ImageField(
+        upload_to=user_profile_image_path,
+        null=True,
+        blank=True,
+        verbose_name=_("Photo de profil")
     )
 
     class Meta:
@@ -188,6 +205,14 @@ class UserProfile(TimeStampedModel):
             new_number = 1
 
         return f"{prefix}{year}{new_number:04d}"
+
+# Signal pour créer ou mettre à jour le profil de l'utilisateur automatiquement
+@receiver(post_save, sender=User)
+def create_or_update_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)
+    else:
+        instance.profile.save()
 
 # Modèle NFCCard
 class NFCCard(TimeStampedModel):
@@ -1048,3 +1073,5 @@ class TemporaryQRCode(models.Model):
 
     def __str__(self):
         return f"QR Code pour {self.user.username} valide jusqu'à {self.expires_at}"
+    
+    

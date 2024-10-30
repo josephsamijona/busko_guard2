@@ -12,11 +12,16 @@ from datetime import datetime
 from django.db.models import Q
 from celery import shared_task
 from django.core.mail import send_mail
-from .models import User, Leave, AttendanceRecord, Notification, NFCReader,Reportfolder, ReportSchedule, AttendanceRecord, Department, User
+from .models import User, Leave, AttendanceRecord,TemporaryQRCode, Notification, NFCReader,Reportfolder, ReportSchedule, AttendanceRecord, Department, User
 from .attendaceutils import calculate_attendance
 from pythonping import ping
+import logging
 from django.utils import timezone
 from datetime import date, timedelta
+
+
+logger = logging.getLogger(__name__)
+
 
 @shared_task
 def ping_nfc_readers():
@@ -341,3 +346,12 @@ def schedule_reports():
         schedule.next_run = next_run
         schedule.last_run = now
         schedule.save()
+        
+@shared_task
+def cleanup_expired_qr_codes():
+    now = timezone.now()
+    expired_qrs = TemporaryQRCode.objects.filter(expires_at__lt=now)
+    count = expired_qrs.count()
+    expired_qrs.delete()
+    logger.info(f"{count} QR codes expirés supprimés.")
+    return f"{count} QR codes expirés supprimés."

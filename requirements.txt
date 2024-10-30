@@ -76,3 +76,4 @@ pyscard
 pandas 
 xlsxwriter 
 reportlab
+qrcode

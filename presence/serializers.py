@@ -8,7 +8,7 @@ from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
     PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
     NFCReader, AccessPoint, AccessRule,
-    LoginAttempt, UserSession, PasswordReset, Reportfolder
+    LoginAttempt, UserSession, PasswordReset, Reportfolder, TemporaryQRCode
 )
 from django.contrib.auth.password_validation import validate_password
 
@@ -523,3 +523,12 @@ class PresenceStatisticsSerializer(serializers.Serializer):
     total_late = serializers.IntegerField()
     total_early_departure = serializers.IntegerField()
     # Ajoutez d'autres champs si nécessaire
+    
+    
+
+class TemporaryQRCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TemporaryQRCode
+        fields = ['id', 'user', 'code', 'created_at', 'expires_at', 'is_used']
+        read_only_fields = ['id', 'user', 'code', 'created_at', 'expires_at', 'is_used']
+

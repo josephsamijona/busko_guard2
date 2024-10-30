@@ -8,13 +8,16 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import viewsets, permissions, status
 from presence.attendaceutils import calculate_attendance
+from django.http import HttpResponse
+from django.shortcuts import render, redirect
+from presence.qr_code_utils import generate_custom_qr_code, send_qr_via_email, qr_image_to_base64
 import subprocess
 from django.contrib.auth.models import User
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
     PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,Reportfolder,
     NFCReader, AccessPoint, AccessRule,
-    LoginAttempt, UserSession, PasswordReset
+    LoginAttempt, UserSession, PasswordReset,TemporaryQRCode
 )
 # presence/views.py
 
@@ -639,3 +642,127 @@ class PresenceStatisticsView(APIView):
 
         serializer = PresenceStatisticsSerializer(statistics)
         return Response(serializer.data)
+    
+class TemporaryQRCodeViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def generate_qr(self, request):
+        user = request.user
+
+        # Créer ou récupérer un QR code existant valide
+        qr_record, created = TemporaryQRCode.objects.get_or_create(
+            user=user,
+            is_used=False,
+            expires_at__gt=timezone.now(),
+            defaults={'user': user}
+        )
+
+        # Générer l'URL de validation
+        validation_url = request.build_absolute_uri(f'/api/validate_qr/{qr_record.code}/')
+        qr_image = generate_custom_qr_code(validation_url, user)
+        qr_image_base64 = qr_image_to_base64(qr_image)
+
+        # Envoyer le QR code via Email
+        send_qr_via_email(user.email, qr_image_base64)
+
+        # Retourner l'image QR encodée en base64 pour affichage dans l'application
+        return Response({'qr_code': qr_image_base64}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def get_qr(self, request):
+        user = request.user
+
+        qr_record = TemporaryQRCode.objects.filter(
+            user=user,
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).last()
+
+        if not qr_record:
+            return Response({'error': 'Aucun QR Code valide trouvé. Veuillez en générer un nouveau.'}, status=status.HTTP_404_NOT_FOUND)
+
+        validation_url = request.build_absolute_uri(f'/api/validate_qr/{qr_record.code}/')
+        qr_image = generate_custom_qr_code(validation_url, user)
+        qr_image_base64 = qr_image_to_base64(qr_image)
+
+        return Response({'qr_code': qr_image_base64}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def validate_qr(self, request):
+        code = request.data.get('code')
+        if not code:
+            return Response({'error': 'Le code QR est requis.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            qr_record = TemporaryQRCode.objects.get(code=code)
+        except TemporaryQRCode.DoesNotExist:
+            return Response({'error': 'QR Code invalide.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not qr_record.is_valid():
+            return Response({'error': 'QR Code expiré ou déjà utilisé.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Marquer le QR code comme utilisé
+        qr_record.is_used = True
+        qr_record.save()
+
+        # Enregistrer l'assiduité
+        AttendanceRecord.objects.create(
+            user=qr_record.user,
+            action_type=AttendanceRecord.Status.ARRIVAL,
+            notes='Présence enregistrée via QR Code.'
+        )
+
+        return Response({'status': 'Présence enregistrée avec succès.'}, status=status.HTTP_200_OK)
+
+def display_qr_code(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
+
+    user = request.user
+
+    qr_record = TemporaryQRCode.objects.filter(
+        user=user,
+        is_used=False,
+        expires_at__gt=timezone.now()
+    ).last()
+
+    if not qr_record:
+        return HttpResponse("Aucun QR Code valide trouvé. Veuillez en générer un nouveau.", status=404)
+
+    validation_url = request.build_absolute_uri(f'/api/validate_qr/{qr_record.code}/')
+    qr_image = generate_custom_qr_code(validation_url, user)
+    qr_image_base64 = qr_image_to_base64(qr_image)
+
+    context = {
+        'qr_code': qr_image_base64,
+        'expires_at': qr_record.expires_at.strftime('%d/%m/%Y %H:%M')
+    }
+
+    return render(request, 'qr_code_display.html', context)
+
+def download_qr_code(request):
+    if not request.user.is_authenticated:
+        return redirect('login')
+
+    user = request.user
+
+    qr_record = TemporaryQRCode.objects.filter(
+        user=user,
+        is_used=False,
+        expires_at__gt=timezone.now()
+    ).last()
+
+    if not qr_record:
+        return HttpResponse("Aucun QR Code valide trouvé. Veuillez en générer un nouveau.", status=404)
+
+    # Générer l'image QR
+    validation_url = request.build_absolute_uri(f'/api/validate_qr/{qr_record.code}/')
+    qr_image = generate_custom_qr_code(validation_url, user)
+
+    # Préparer la réponse HTTP avec le fichier image
+    response = HttpResponse(content_type="image/png")
+    response['Content-Disposition'] = f'attachment; filename="qr_code_{user.username}.png"'
+    qr_image.save(response, "PNG")
+
+    return response
