@@ -8,7 +8,7 @@ from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
     PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
     NFCReader, AccessPoint, AccessRule,
-    LoginAttempt, UserSession, PasswordReset
+    LoginAttempt, UserSession, PasswordReset, Reportfolder
 )
 from django.contrib.auth.password_validation import validate_password
 
@@ -474,3 +474,43 @@ class NotificationUpdateSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ['is_read']
         read_only_fields = []
+        
+class ReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reportfolder
+        fields = [
+            'id',
+            'name',
+            'report_type',
+            'format',
+            'status',
+            'generated_at',
+            'error_message',
+            'file',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'status', 'generated_at', 'error_message', 'file', 'created_at', 'updated_at']
+        
+# presence/serializers.py
+
+class ReportScheduleSerializer(serializers.ModelSerializer):
+    report = serializers.PrimaryKeyRelatedField(queryset=Reportfolder.objects.all())
+    recipients = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.all())
+
+    class Meta:
+        model = ReportSchedule
+        fields = [
+            'id',
+            'report',
+            'frequency',
+            'is_active',
+            'next_run',
+            'last_run',
+            'recipients',
+            'send_empty',
+            'configuration',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'next_run', 'last_run', 'created_at', 'updated_at']

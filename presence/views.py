@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from datetime import datetime, timedelta
 from django.db.models import Q
-
+from .tasks import generate_report_task
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import viewsets, permissions, status
@@ -12,7 +12,7 @@ import subprocess
 from django.contrib.auth.models import User
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
-    PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
+    PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,Reportfolder,
     NFCReader, AccessPoint, AccessRule,
     LoginAttempt, UserSession, PasswordReset
 )
@@ -38,7 +38,7 @@ from .serializers import (
     AccessRuleSerializer,
     AttendanceRecordSerializer,
     LeaveApprovalSerializer,
-    LeaveRequestSerializer, NotificationUpdateSerializer,NotificationSerializer
+    LeaveRequestSerializer, NotificationUpdateSerializer,NotificationSerializer,ReportSerializer,ReportScheduleSerializer
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
@@ -515,7 +515,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save()
 
-class LeaveApprovalViewSet(viewsets.ModelViewSet):
+class LeaveApprovalViewSetupnotif(viewsets.ModelViewSet):
     """
     API endpoint permettant aux responsables d'approuver ou de rejeter les demandes de congé.
     """
@@ -555,3 +555,37 @@ class LeaveApprovalViewSet(viewsets.ModelViewSet):
         )
 
         return Response(serializer.data)
+    
+class ReportViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les rapports.
+    """
+    queryset = Reportfolder.objects.all()
+    serializer_class = ReportSerializer
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, permissions.IsAdminUser])
+    def generate(self, request, pk=None):
+        """
+        Génère un rapport spécifique.
+        """
+        report = self.get_object()
+        if report.status == 'generating':
+            return Response({'error': 'Le rapport est déjà en cours de génération.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Mettre à jour le statut du rapport
+        report.status = 'generating'
+        report.save()
+
+        # Lancer la tâche de génération du rapport
+        generate_report_task.delay(report.id)
+
+        return Response({'status': 'Génération du rapport lancée.'}, status=status.HTTP_202_ACCEPTED)
+    
+class ReportScheduleViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les planifications de rapports.
+    """
+    queryset = ReportSchedule.objects.all()
+    serializer_class = ReportScheduleSerializer
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]

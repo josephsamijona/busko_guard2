@@ -17,7 +17,7 @@ from .views import (
     AccessRuleViewSet,
     AttendanceRecordViewSet,
     access_point_access,
-    LeaveRequestViewSet, LeaveApprovalViewSet, daily_attendance_report, monthly_attendance_report,
+    LeaveRequestViewSet, LeaveApprovalViewSet, daily_attendance_report, monthly_attendance_report,NotificationViewSet,LeaveApprovalViewSetupnotif
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -40,6 +40,8 @@ router.register(r'access-rules', AccessRuleViewSet, basename='accessrule')
 router.register(r'attendance-records', AttendanceRecordViewSet, basename='attendancerecord')
 router.register(r'leave-requests', LeaveRequestViewSet, basename='leaverequest')
 router.register(r'leave-approvals', LeaveApprovalViewSet, basename='leaveapproval')
+router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'LeaveApprovalViewSetup', LeaveApprovalViewSetupnotif, basename='LeaveApprovalViewSetup')
 
 urlpatterns = [
     path('', include(router.urls)),

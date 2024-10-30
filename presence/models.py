@@ -4,6 +4,8 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
+import os
+
 
 class TimeStampedModel(models.Model):
     """Modèle abstrait pour ajouter created_at et updated_at"""
@@ -646,6 +648,8 @@ class Report(TimeStampedModel):
         return f"{self.name} ({self.get_report_type_display()})"
 
 # Modèle ReportSchedule
+# presence/models.py
+
 class ReportSchedule(TimeStampedModel):
     """Modèle pour gérer la planification des rapports"""
 
@@ -654,6 +658,7 @@ class ReportSchedule(TimeStampedModel):
         WEEKLY = 'WEEKLY', _('Hebdomadaire')
         MONTHLY = 'MONTHLY', _('Mensuel')
         QUARTERLY = 'QUARTERLY', _('Trimestriel')
+        ANNUAL = 'ANNUAL', _('Annuel')  # Ajout de la fréquence annuelle
 
     report = models.ForeignKey(
         Report,
@@ -700,6 +705,7 @@ class ReportSchedule(TimeStampedModel):
 
     def __str__(self):
         return f"{self.report.name} - {self.get_frequency_display()}"
+
 
 # Modèle NFCReader
 class NFCReader(TimeStampedModel):
@@ -978,3 +984,46 @@ class PasswordReset(TimeStampedModel):
     def __str__(self):
         status = "Utilisé" if self.used else "Non utilisé"
         return f"{self.user.username} - {self.token} - {status} - {self.created_at}"
+
+def report_file_path(instance, filename):
+    # Génère un chemin de fichier unique pour chaque rapport
+    ext = filename.split('.')[-1]
+    filename = f'report_{instance.id}.{ext}'
+    return os.path.join('reports', filename)
+
+class Reportfolder(TimeStampedModel):
+    """Représente un rapport généré par le système."""
+
+    REPORT_TYPES = [
+        ('presence', 'Présence'),
+        ('department', 'Département'),
+        ('user', 'Utilisateur'),
+        # Ajoutez d'autres types de rapports si nécessaire
+    ]
+
+    FORMAT_CHOICES = [
+        ('csv', 'CSV'),
+        ('pdf', 'PDF'),
+        ('xlsx', 'Excel'),
+    ]
+
+    name = models.CharField(max_length=255, verbose_name=_("Nom du rapport"))
+    report_type = models.CharField(max_length=50, choices=REPORT_TYPES, verbose_name=_("Type de rapport"))
+    file = models.FileField(upload_to=report_file_path, null=True, blank=True, verbose_name=_("Fichier du rapport"))
+    format = models.CharField(max_length=10, choices=FORMAT_CHOICES, default='csv', verbose_name=_("Format"))
+    status = models.CharField(
+        max_length=50,
+        choices=[
+            ('pending', 'En attente'),
+            ('generating', 'Génération en cours'),
+            ('completed', 'Terminé'),
+            ('failed', 'Échoué'),
+        ],
+        default='pending',
+        verbose_name=_("Statut")
+    )
+    generated_at = models.DateTimeField(null=True, blank=True, verbose_name=_("Date de génération"))
+    error_message = models.TextField(null=True, blank=True, verbose_name=_("Message d'erreur"))
+
+    def __str__(self):
+        return f"{self.get_report_type_display()} - {self.name}"

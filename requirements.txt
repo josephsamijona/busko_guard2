@@ -73,3 +73,6 @@ django-axes
 
 django-rest-knox
 pyscard
+pandas 
+xlsxwriter 
+reportlab
