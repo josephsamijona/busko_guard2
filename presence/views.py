@@ -1,5 +1,8 @@
 # core/views.py
 
+from datetime import datetime
+from rest_framework.response import Response
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import viewsets, permissions, status
 import subprocess
 from django.contrib.auth.models import User
@@ -21,13 +24,20 @@ from .serializers import (
     LogEntrySerializer,
     NFCCardSerializer,
     AccessPointSerializer,
-    NFCReaderSerializer
+    NFCReaderSerializer,
+    AttendanceRuleSerializer,
+    AccessRuleSerializer
 )
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
 from django.utils import timezone      # Assurez-vous que timezone est importé
+from django.shortcuts import get_object_or_404
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+
 class IsAdminOrReadOnly(permissions.BasePermission):
     """
     Permet uniquement aux utilisateurs admin de modifier, tout le monde peut lire.
@@ -231,3 +241,129 @@ class AccessPointViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAdminUser]
     filterset_fields = ['is_active', 'required_access_level']
     search_fields = ['name', 'description', 'reader__name']
+    
+class AttendanceRuleViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les règles de présence.
+    """
+    queryset = AttendanceRule.objects.select_related('department').all()
+    serializer_class = AttendanceRuleSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filterset_fields = ['department']
+    search_fields = ['name', 'department__name']
+    
+# presence/views.py
+
+class AccessRuleViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les règles d'accès avancées.
+    """
+    queryset = AccessRule.objects.select_related('access_point').prefetch_related('departments', 'allowed_users').all()
+    serializer_class = AccessRuleSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filterset_fields = ['rule_type', 'access_point', 'is_active', 'departments']
+    search_fields = ['name', 'rule_type', 'access_point__name', 'description']
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def access_point_access(request, access_point_id):
+    """
+    Endpoint pour traiter l'accès à un point d'accès via une carte NFC.
+    """
+    access_point = get_object_or_404(AccessPoint, id=access_point_id)
+    
+    card_uid = request.data.get('card_uid')
+    if not card_uid:
+        return Response({'error': 'UID de la carte NFC requis.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        card = NFCCard.objects.get(card_uid=card_uid, is_active=True)
+    except NFCCard.DoesNotExist:
+        return Response({'error': 'Carte NFC invalide ou inactive.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = card.user
+    try:
+        attendance_rule = AttendanceRule.objects.get(department=user.profile.department, is_active=True)
+    except AttendanceRule.DoesNotExist:
+        return Response({'error': 'Règle de présence non définie pour ce département.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    current_time = timezone.now().time()
+    
+    # Vérifier les horaires de travail
+    if not (attendance_rule.start_time <= current_time <= attendance_rule.end_time):
+        return Response({'error': 'Accès en dehors des heures de travail.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Vérifier les règles d'accès
+    access_rules = AccessRule.objects.filter(access_point=access_point, is_active=True).order_by('-priority')
+    
+    access_granted = False
+    for rule in access_rules:
+        # Vérifier les dates de validité
+        if rule.start_date and timezone.now() < rule.start_date:
+            continue
+        if rule.end_date and timezone.now() > rule.end_date:
+            continue
+        
+        # Vérifier les départements autorisés
+        if rule.departments.exists() and user.profile.department not in rule.departments.all():
+            continue
+        
+        # Vérifier selon le type de règle
+        if rule.rule_type == AccessRule.RuleType.TIME_BASED:
+            start = rule.conditions.get('start_time')
+            end = rule.conditions.get('end_time')
+            if start and end:
+                # Convertir les chaînes en objets time si nécessaire
+                try:
+                    start_time = datetime.strptime(start, '%H:%M').time()
+                    end_time = datetime.strptime(end, '%H:%M').time()
+                except ValueError:
+                    # Format de temps incorrect
+                    continue
+                if not (start_time <= current_time <= end_time):
+                    continue
+        elif rule.rule_type == AccessRule.RuleType.USER_BASED:
+            allowed_users = rule.allowed_users.all()
+            if user not in allowed_users:
+                continue
+        elif rule.rule_type == AccessRule.RuleType.TEMPORARY:
+            # Implémenter des règles temporaires si nécessaire
+            temporary_conditions = rule.conditions.get('temporary_conditions', {})
+            # Exemple: vérifier une condition spécifique
+            # if not temporary_conditions.get('some_condition'):
+            #     continue
+            pass
+        elif rule.rule_type == AccessRule.RuleType.SPECIAL:
+            # Implémenter des conditions spéciales
+            special_conditions = rule.conditions.get('special_conditions', {})
+            # Exemple: vérifier des flags ou d'autres paramètres
+            # if not special_conditions.get('holiday_access', False):
+            #     continue
+            pass
+        else:
+            continue
+        
+        # Si toutes les conditions sont remplies, accorder l'accès
+        access_granted = True
+        break
+    
+    if access_granted:
+        # Enregistrer l'enregistrement de présence (Arrivée)
+        AttendanceRecord.objects.create(
+            user=user,
+            action_type=AttendanceRecord.Status.ARRIVAL,
+            location=access_point,
+            notes='Accès autorisé.'
+        )
+        logger.info(f"Accès autorisé pour {user.username} au point d'accès {access_point.name} à {timezone.now()}")
+        return Response({'status': 'Accès autorisé.'}, status=status.HTTP_200_OK)
+    else:
+        # Enregistrer l'échec d'accès (Départ ou autre action selon le contexte)
+        AttendanceRecord.objects.create(
+            user=user,
+            action_type=AttendanceRecord.Status.DEPARTURE,
+            location=access_point,
+            notes='Accès refusé selon les règles d\'accès.'
+        )
+        logger.warning(f"Accès refusé pour {user.username} au point d'accès {access_point.name} à {timezone.now()}")
+        return Response({'error': 'Accès refusé selon les règles d\'accès.'}, status=status.HTTP_403_FORBIDDEN)
