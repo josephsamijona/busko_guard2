@@ -2,17 +2,26 @@
 
 from rest_framework import viewsets, permissions, status
 from django.contrib.auth.models import User
-from .models import Department, UserProfile
+from .models import (
+    Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
+    PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
+    NFCReader, AccessPoint, AccessRule,
+    LoginAttempt, UserSession, PasswordReset
+)
 from .serializers import (
     DepartmentSerializer, 
     UserSerializer, 
     UserCreateSerializer,
     UserProfileSerializer,
-    UserProfileUpdateSerializer
+    UserProfileUpdateSerializer,
+    LoginAttemptSerializer,
+    UserSessionSerializer,
+    PasswordResetSerializer,
+    LogEntrySerializer
 )
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 class IsAdminOrReadOnly(permissions.BasePermission):
     """
     Permet uniquement aux utilisateurs admin de modifier, tout le monde peut lire.
@@ -89,3 +98,64 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         if self.action in ['update', 'partial_update']:
             return UserProfileUpdateSerializer
         return UserProfileSerializer
+
+class LoginAttemptViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint pour visualiser les tentatives de connexion.
+    Seuls les administrateurs peuvent accéder à cette vue.
+    """
+    queryset = LoginAttempt.objects.all().order_by('-timestamp')
+    serializer_class = LoginAttemptSerializer
+    permission_classes = [IsAdminUser]
+    filterset_fields = ['user', 'success', 'ip_address']
+    search_fields = ['user__username', 'ip_address', 'user_agent']
+
+
+class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint pour visualiser les sessions utilisateur actives.
+    Seuls les administrateurs peuvent accéder à cette vue.
+    """
+    queryset = UserSession.objects.filter(is_active=True).order_by('-last_activity')
+    serializer_class = UserSessionSerializer
+    permission_classes = [IsAdminUser]
+    filterset_fields = ['user', 'ip_address', 'is_active']
+    search_fields = ['user__username', 'ip_address', 'user_agent']
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAdminUser])
+    def terminate(self, request, pk=None):
+        """
+        Terminer une session utilisateur spécifique.
+        """
+        try:
+            session = self.get_object()
+            session.is_active = False
+            session.save()
+            return Response({'status': 'Session terminée'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordResetViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les demandes de réinitialisation de mot de passe.
+    Seuls les administrateurs peuvent visualiser les demandes.
+    Les utilisateurs peuvent créer des demandes via un autre mécanisme (comme un endpoint spécifique).
+    """
+    queryset = PasswordReset.objects.all().order_by('-created_at')
+    serializer_class = PasswordResetSerializer
+    permission_classes = [IsAdminUser]
+    filterset_fields = ['user', 'used', 'ip_address']
+    search_fields = ['user__username', 'user__email', 'ip_address']
+
+
+class LogEntryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint pour visualiser les logs des opérations.
+    Seuls les administrateurs peuvent accéder à cette vue.
+    """
+    queryset = LogEntry.objects.all().order_by('-timestamp')
+    serializer_class = LogEntrySerializer
+    permission_classes = [IsAdminUser]
+    filterset_fields = ['user', 'action', 'ip_address']
+    search_fields = ['user__username', 'action', 'ip_address', 'user_agent']

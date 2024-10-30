@@ -2,7 +2,12 @@
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Department, UserProfile
+from .models import (
+    Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
+    PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
+    NFCReader, AccessPoint, AccessRule,
+    LoginAttempt, UserSession, PasswordReset
+)
 from django.contrib.auth.password_validation import validate_password
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -123,3 +128,64 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             'department_id',
             'role',
         ]
+
+class LoginAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LoginAttempt
+        fields = [
+            'id',
+            'user',
+            'ip_address',
+            'timestamp',
+            'success',
+            'user_agent',
+        ]
+        read_only_fields = ['id', 'user', 'timestamp', 'success', 'user_agent']
+
+
+class UserSessionSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = UserSession
+        fields = [
+            'id',
+            'user',
+            'session_key',
+            'ip_address',
+            'user_agent',
+            'last_activity',
+            'created_at',
+            'is_active',
+        ]
+        read_only_fields = ['id', 'user', 'session_key', 'ip_address', 'user_agent', 'last_activity', 'created_at']
+
+
+class PasswordResetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PasswordReset
+        fields = [
+            'id',
+            'user',
+            'token',
+            'created_at',
+            'used',
+            'ip_address',
+        ]
+        read_only_fields = ['id', 'user', 'token', 'created_at', 'used', 'ip_address']
+
+
+class LogEntrySerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = LogEntry
+        fields = [
+            'id',
+            'user',
+            'action',
+            'timestamp',
+            'ip_address',
+            'user_agent',
+        ]
+        read_only_fields = ['id', 'user', 'action', 'timestamp', 'ip_address', 'user_agent']

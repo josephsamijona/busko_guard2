@@ -4,9 +4,9 @@ from django.contrib import admin
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
     PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,
-    NFCReader, AccessPoint, AccessRule
+    NFCReader, AccessPoint, AccessRule,
+    LoginAttempt, UserSession, PasswordReset
 )
-
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'manager', 'is_active')
@@ -163,3 +163,27 @@ class AccessRuleAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('created_at', 'updated_at')
     filter_horizontal = ('departments',)
+    
+@admin.register(LoginAttempt)
+class LoginAttemptAdmin(admin.ModelAdmin):
+    list_display = ('user', 'ip_address', 'success', 'timestamp', 'user_agent')
+    search_fields = ('user__username', 'ip_address', 'user_agent')
+    list_filter = ('success', 'timestamp')
+    ordering = ('-timestamp',)
+    readonly_fields = ('user', 'ip_address', 'success', 'timestamp', 'user_agent')
+
+@admin.register(UserSession)
+class UserSessionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'session_key', 'ip_address', 'user_agent', 'last_activity', 'is_active')
+    search_fields = ('user__username', 'ip_address', 'user_agent')
+    list_filter = ('is_active', 'last_activity')
+    ordering = ('-last_activity',)
+    readonly_fields = ('user', 'session_key', 'ip_address', 'user_agent', 'last_activity', 'is_active')
+
+@admin.register(PasswordReset)
+class PasswordResetAdmin(admin.ModelAdmin):
+    list_display = ('user', 'token', 'used', 'ip_address', 'created_at')
+    search_fields = ('user__username', 'token', 'ip_address')
+    list_filter = ('used', 'created_at')
+    ordering = ('-created_at',)
+    readonly_fields = ('user', 'token', 'used', 'ip_address', 'created_at')

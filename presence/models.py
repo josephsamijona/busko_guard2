@@ -885,3 +885,71 @@ class AccessRule(TimeStampedModel):
                 raise ValidationError(
                     _("La date de début doit être antérieure à la date de fin")
                 )
+
+class LoginAttempt(TimeStampedModel):
+    """Trace les tentatives de connexion des utilisateurs pour prévenir les attaques par force brute."""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='login_attempts',
+        verbose_name=_("Utilisateur")
+    )
+    ip_address = models.GenericIPAddressField(verbose_name=_("Adresse IP"))
+    success = models.BooleanField(default=False, verbose_name=_("Succès"))
+    user_agent = models.CharField(max_length=255, verbose_name=_("Agent utilisateur"))
+
+    class Meta:
+        verbose_name = _("Tentative de connexion")
+        verbose_name_plural = _("Tentatives de connexion")
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        status = "Succès" if self.success else "Échec"
+        user_str = self.user.username if self.user else "Utilisateur inconnu"
+        return f"{user_str} - {status} - {self.ip_address} à {self.timestamp}"
+    
+class UserSession(TimeStampedModel):
+    """Suit et gère les sessions actives des utilisateurs."""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='sessions',
+        verbose_name=_("Utilisateur")
+    )
+    session_key = models.CharField(max_length=40, unique=True, verbose_name=_("Clé de session"))
+    ip_address = models.GenericIPAddressField(verbose_name=_("Adresse IP"))
+    user_agent = models.CharField(max_length=255, verbose_name=_("Agent utilisateur"))
+    last_activity = models.DateTimeField(default=timezone.now, verbose_name=_("Dernière activité"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Active"))
+
+    class Meta:
+        verbose_name = _("Session utilisateur")
+        verbose_name_plural = _("Sessions utilisateurs")
+        ordering = ['-last_activity']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.session_key} - {self.ip_address} - Active: {self.is_active}"
+    
+class PasswordReset(TimeStampedModel):
+    """Gère les demandes de réinitialisation de mots de passe avec des tokens sécurisés."""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='password_resets',
+        verbose_name=_("Utilisateur")
+    )
+    token = models.CharField(max_length=255, unique=True, verbose_name=_("Token"))
+    used = models.BooleanField(default=False, verbose_name=_("Utilisé"))
+    ip_address = models.GenericIPAddressField(verbose_name=_("Adresse IP"))
+    created_at = models.DateTimeField(default=timezone.now, verbose_name=_("Créé le"))
+
+    class Meta:
+        verbose_name = _("Réinitialisation de mot de passe")
+        verbose_name_plural = _("Réinitialisations de mot de passe")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        status = "Utilisé" if self.used else "Non utilisé"
+        return f"{self.user.username} - {self.token} - {status} - {self.created_at}"
