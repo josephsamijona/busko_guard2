@@ -256,45 +256,7 @@ WHATSAPP_API_URL = get_env_variable('WHATSAPP_API_URL')
 WHATSAPP_PHONE_NUMBER = get_env_variable('WHATSAPP_PHONE_NUMBER')
 WHATSAPP_TOKEN = get_env_variable('WHATSAPP_TOKEN')
 
-# Logging Configuration
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
-            'formatter': 'verbose',
-        },
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
-    'root': {
-        'handlers': ['file', 'console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        'django.db.backends': {
-            'level': 'INFO',
-            'handlers': ['console'],
-            'propagate': False,
-        },
-    },
-}
+
 
 # settings.py (ajoutez à la fin du fichier)
 
