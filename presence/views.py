@@ -20,7 +20,7 @@ from .models import (
 
 from presence.nfc_utils import read_card_uid
 
-from .permissions import IsManager 
+from .permissions import IsManager, IsRecipient
 from .serializers import (
     DepartmentSerializer, 
     UserSerializer, 
@@ -38,7 +38,7 @@ from .serializers import (
     AccessRuleSerializer,
     AttendanceRecordSerializer,
     LeaveApprovalSerializer,
-    LeaveRequestSerializer
+    LeaveRequestSerializer, NotificationUpdateSerializer,NotificationSerializer
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
@@ -496,3 +496,62 @@ def monthly_attendance_report(request, user_id, year, month):
         'month': f"{year}-{month:02d}",
         'attendance_report': report
     }, status=200)
+    
+class NotificationViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint pour gérer les notifications des utilisateurs.
+    """
+    queryset = Notification.objects.all()
+    permission_classes = [permissions.IsAuthenticated, IsRecipient]
+
+    def get_serializer_class(self):
+        if self.action in ['update', 'partial_update']:
+            return NotificationUpdateSerializer
+        return NotificationSerializer
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user).order_by('-created_at')
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+class LeaveApprovalViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint permettant aux responsables d'approuver ou de rejeter les demandes de congé.
+    """
+    serializer_class = LeaveApprovalSerializer
+    permission_classes = [permissions.IsAuthenticated, IsManager]
+
+    def get_queryset(self):
+        # Le responsable voit les demandes des utilisateurs de son département
+        department = self.request.user.profile.department
+        return Leave.objects.filter(user__profile__department=department, status=Leave.Status.PENDING)
+
+    def update(self, request, *args, **kwargs):
+        # Limiter les champs modifiables
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # Créer une notification pour l'utilisateur
+        status_updated = serializer.validated_data.get('status')
+        if status_updated == Leave.Status.APPROVED:
+            message = f"Votre demande de congé du {instance.start_date} au {instance.end_date} a été approuvée."
+            notification_type = 'general'  # Utiliser 'general' pour les messages approuvés
+        else:
+            message = f"Votre demande de congé du {instance.start_date} au {instance.end_date} a été rejetée.\nRaison du rejet : {serializer.validated_data.get('comments', '')}"
+            notification_type = 'anomaly'  # Utiliser 'anomaly' pour les rejets
+
+        Notification.objects.create(
+            recipient=instance.user,
+            message=message,
+            notification_type=notification_type,
+            approved_by=request.user,
+            start_date=instance.start_date,
+            end_date=instance.end_date,
+            comments=serializer.validated_data.get('comments', '')
+        )
+
+        return Response(serializer.data)

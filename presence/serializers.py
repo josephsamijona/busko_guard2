@@ -455,3 +455,22 @@ class LeaveApprovalSerializer(serializers.ModelSerializer):
         if data.get('status') not in [Leave.Status.APPROVED, Leave.Status.REJECTED]:
             raise serializers.ValidationError("Le statut doit être 'APPROVED' ou 'REJECTED'.")
         return data
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'message',
+            'notification_type',
+            'is_read',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'message', 'notification_type', 'is_read', 'created_at', 'updated_at']
+
+class NotificationUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['is_read']
+        read_only_fields = []
