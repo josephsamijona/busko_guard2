@@ -174,7 +174,7 @@ POST   /api/attendance-records/ # Enregistrer présence
 GET    /api/statistics/presence/ # Statistiques
 ```
 
-[Suite dans la partie 2...]
+
 
 <a name="en"></a>
 # 🇬🇧 English Documentation
@@ -257,7 +257,7 @@ BuskoGuard es una solución integral de gestión de asistencia y control de acce
 - 🌐 API RESTful completa
 - 🔄 Integración Celery para tareas asíncronas
 
-[... Continúa con la misma structure que la version française ...]
+
 
 <a name="pt"></a>
 # 🇵🇹 Documentação em Português
@@ -290,7 +290,7 @@ BuskoGuard é uma solução completa de gestão de presença e controle de acess
 - 🌐 API RESTful completa
 - 🔄 Integração Celery para tarefas assíncronas
 
-[... Continue with the same structure as French version ...]
+
 
 ## 🌐 Support International
 
