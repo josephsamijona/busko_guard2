@@ -2,22 +2,25 @@
 from rest_framework.views import APIView
 from datetime import date, datetime
 from datetime import datetime, timedelta
+import random
 from django.db.models import Q
 from .tasks import generate_report_task
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, generics
 from presence.attendaceutils import calculate_attendance
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from presence.qr_code_utils import generate_custom_qr_code, send_qr_via_email, qr_image_to_base64
 import subprocess
+from django.contrib.auth import authenticate, login
+from django.core.mail import send_mail
 from django.contrib.auth.models import User
 from .models import (
     Department, UserProfile, NFCCard, AttendanceRule, AttendanceRecord,
     PresenceHistory, Leave, Notification, LogEntry, Report, ReportSchedule,Reportfolder,
     NFCReader, AccessPoint, AccessRule,
-    LoginAttempt, UserSession, PasswordReset,TemporaryQRCode
+    LoginAttempt, UserSession, PasswordReset,TemporaryQRCode, TwoFactorCode
 )
 # presence/views.py
 
@@ -42,14 +45,17 @@ from .serializers import (
     AttendanceRecordSerializer,
     LeaveApprovalSerializer,
     LeaveRequestSerializer, NotificationUpdateSerializer,NotificationSerializer,ReportSerializer,ReportScheduleSerializer,
-    PresenceStatisticsSerializer
+    PresenceStatisticsSerializer,UserProfileSerializersetup,UserSerializersetup,SignupSerializersetup
     
 )
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from pythonping import ping           # Ajoutez cette ligne
 from django.utils import timezone      # Assurez-vous que timezone est importé
 from django.shortcuts import get_object_or_404
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser
 import logging
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -766,3 +772,77 @@ def download_qr_code(request):
     qr_image.save(response, "PNG")
 
     return response
+
+class SignupView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = SignupSerializersetup
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        username_or_email = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(username=username_or_email, password=password)
+        if not user:
+            # Si l'authentification échoue, vérifier si l'email est utilisé
+            try:
+                user_obj = User.objects.get(email=username_or_email)
+                user = authenticate(username=user_obj.username, password=password)
+            except User.DoesNotExist:
+                pass
+
+        if user:
+            # Générer un code à 6 chiffres
+            code = str(random.randint(100000, 999999))
+            TwoFactorCode.objects.create(user=user, code=code)
+
+            # Envoyer l'email avec le code
+            send_mail(
+                'Votre code de vérification',
+                f'Votre code de vérification est {code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+            return Response({'message': 'Code de vérification envoyé par email.', 'username': user.username}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Identifiants invalides.'}, status=status.HTTP_400_BAD_REQUEST)
+
+class TwoFactorVerifyView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username')
+        code = request.data.get('code')
+
+        try:
+            user = User.objects.get(username=username)
+            two_factor_code = TwoFactorCode.objects.filter(user=user, code=code, is_used=False).last()
+            if two_factor_code and two_factor_code.is_valid():
+                # Marquer le code comme utilisé
+                two_factor_code.is_used = True
+                two_factor_code.save()
+                # Connecter l'utilisateur
+                login(request, user)
+                # Générer un token JWT
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Code invalide ou expiré.'}, status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            return Response({'error': 'Utilisateur non trouvé.'}, status=status.HTTP_400_BAD_REQUEST)
+
+class UserProfileUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializersetup
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_object(self):
+        return self.request.user.profile

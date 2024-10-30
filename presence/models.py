@@ -1075,3 +1075,14 @@ class TemporaryQRCode(models.Model):
         return f"QR Code pour {self.user.username} valide jusqu'à {self.expires_at}"
     
     
+class TwoFactorCode(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        return not self.is_used and timezone.now() < self.created_at + timedelta(minutes=10)
+
+    def __str__(self):
+        return f"Code 2FA pour {self.user.username} - {self.code}"

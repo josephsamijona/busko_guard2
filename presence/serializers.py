@@ -532,3 +532,82 @@ class TemporaryQRCodeSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'code', 'created_at', 'expires_at', 'is_used']
         read_only_fields = ['id', 'user', 'code', 'created_at', 'expires_at', 'is_used']
 
+class UserProfileSerializersetup(serializers.ModelSerializer):
+    profile_image = serializers.ImageField(max_length=None, use_url=True, required=False)
+
+    class Meta:
+        model = UserProfile
+        fields = [
+            'matricule',
+            'department',
+            'role',
+            'phone_number',
+            'address',
+            'emergency_contact',
+            'emergency_phone',
+            'profile_image',
+        ]
+
+    def validate_phone_number(self, value):
+        if value and not value.isdigit():
+            raise serializers.ValidationError("Le numéro de téléphone ne doit contenir que des chiffres.")
+        return value
+
+    def validate_emergency_phone(self, value):
+        if value and not value.isdigit():
+            raise serializers.ValidationError("Le numéro d'urgence ne doit contenir que des chiffres.")
+        return value
+
+    def validate_profile_image(self, value):
+        max_size = 2 * 1024 * 1024  # Taille maximale de 2MB
+        if value.size > max_size:
+            raise serializers.ValidationError("La taille de l'image ne doit pas dépasser 2MB.")
+        return value
+
+class UserSerializersetup(serializers.ModelSerializer):
+    profile = UserProfileSerializer(required=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name', 'profile']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        profile_data = validated_data.pop('profile')
+        password = validated_data.pop('password')
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        # Créer le profil associé
+        UserProfile.objects.create(user=user, **profile_data)
+        return user
+
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop('profile', {})
+        profile = instance.profile
+
+        instance.email = validated_data.get('email', instance.email)
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.save()
+
+        for attr, value in profile_data.items():
+            setattr(profile, attr, value)
+        profile.save()
+
+        return instance
+
+class SignupSerializersetup(serializers.ModelSerializer):
+    profile = UserProfileSerializer(required=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'password', 'first_name', 'last_name', 'profile']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate_password(self, value):
+        # Ajoutez des validations de mot de passe si nécessaire
+        return value
+
+    def create(self, validated_data):
+        return super().create(validated_data)
