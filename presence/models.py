@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from datetime import timedelta
+import uuid
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 import os
@@ -1027,3 +1029,22 @@ class Reportfolder(TimeStampedModel):
 
     def __str__(self):
         return f"{self.get_report_type_display()} - {self.name}"
+    
+class TemporaryQRCode(models.Model):
+    """Modèle pour gérer les QR codes temporaires pour l'attendance."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='qr_codes', verbose_name="Utilisateur")
+    code = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name="Code QR")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créé le")
+    expires_at = models.DateTimeField(verbose_name="Expire le")
+    is_used = models.BooleanField(default=False, verbose_name="Utilisé")
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.expires_at = timezone.now() + timedelta(hours=1)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        return not self.is_used and timezone.now() < self.expires_at
+
+    def __str__(self):
+        return f"QR Code pour {self.user.username} valide jusqu'à {self.expires_at}"
