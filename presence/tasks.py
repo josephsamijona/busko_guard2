@@ -1,8 +1,18 @@
 # presence/tasks.py
+from celery import shared_task
 
+from django.conf import settings
+from django.core.files.base import ContentFile
+import pandas as pd
+import os
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from django.utils import timezone
+from datetime import datetime
+from django.db.models import Q
 from celery import shared_task
 from django.core.mail import send_mail
-from .models import User, Leave, AttendanceRecord, Notification, NFCReader
+from .models import User, Leave, AttendanceRecord, Notification, NFCReader,Reportfolder, ReportSchedule, AttendanceRecord, Department, User
 from .attendaceutils import calculate_attendance
 from pythonping import ping
 from django.utils import timezone
@@ -168,3 +178,127 @@ def detect_extended_breaks():
                     message=f"Votre pause a duré plus longtemps que le temps autorisé ({pause_duration}).",
                     notification_type='extended_break'
                 )
+                
+                
+@shared_task
+def generate_report_task(report_id):
+    try:
+        report = Reportfolder.objects.get(id=report_id)
+        report.status = 'generating'
+        report.save()
+
+        # Générer les données en fonction du type de rapport
+        if report.report_type == 'presence':
+            data = generate_presence_report()
+        elif report.report_type == 'department':
+            data = generate_department_report()
+        elif report.report_type == 'user':
+            data = generate_user_report()
+        else:
+            raise ValueError('Type de rapport inconnu.')
+
+        # Générer le fichier dans le format spécifié
+        if report.format == 'csv':
+            buffer = BytesIO()
+            data.to_csv(buffer, index=False)
+            file_content = buffer.getvalue()
+            buffer.close()
+            file_name = f"{report.name}.csv"
+
+        elif report.format == 'xlsx':
+            buffer = BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                data.to_excel(writer, index=False, sheet_name='Rapport')
+            file_content = buffer.getvalue()
+            buffer.close()
+            file_name = f"{report.name}.xlsx"
+
+        elif report.format == 'pdf':
+            buffer = BytesIO()
+            p = canvas.Canvas(buffer)
+            textobject = p.beginText(50, 800)
+            textobject.setFont("Helvetica", 12)
+            for line in generate_pdf_content(data):
+                textobject.textLine(line)
+            p.drawText(textobject)
+            p.showPage()
+            p.save()
+            file_content = buffer.getvalue()
+            buffer.close()
+            file_name = f"{report.name}.pdf"
+
+        else:
+            raise ValueError('Format de rapport inconnu.')
+
+        # Enregistrer le fichier dans le modèle Report
+        report.file.save(file_name, ContentFile(file_content))
+        report.status = 'completed'
+        report.generated_at = timezone.now()
+        report.save()
+
+    except Exception as e:
+        report.status = 'failed'
+        report.error_message = str(e)
+        report.save()
+
+def generate_presence_report():
+    """
+    Génère un rapport de présence.
+    """
+    # Exemple d'utilisation des modèles AttendanceRecord et User
+    records = AttendanceRecord.objects.select_related('user').all()
+    data = []
+    for record in records:
+        data.append({
+            'Utilisateur': record.user.username,
+            'Nom': record.user.get_full_name(),
+            'Action': record.get_action_type_display(),
+            'Timestamp': record.timestamp,
+            # Ajoutez d'autres champs si nécessaire
+        })
+    df = pd.DataFrame(data)
+    return df
+
+def generate_department_report():
+    """
+    Génère un rapport par département.
+    """
+    departments = Department.objects.all()
+    data = []
+    for dept in departments:
+        users = User.objects.filter(profile__department=dept)
+        data.append({
+            'Département': dept.name,
+            'Nombre d\'utilisateurs': users.count(),
+            # Ajoutez d'autres statistiques si nécessaire
+        })
+    df = pd.DataFrame(data)
+    return df
+
+def generate_user_report():
+    """
+    Génère un rapport par utilisateur.
+    """
+    users = User.objects.all()
+    data = []
+    for user in users:
+        attendance = AttendanceRecord.objects.filter(user=user)
+        data.append({
+            'Utilisateur': user.username,
+            'Nom': user.get_full_name(),
+            'Présences': attendance.filter(action_type=AttendanceRecord.Status.ARRIVAL).count(),
+            'Départs': attendance.filter(action_type=AttendanceRecord.Status.DEPARTURE).count(),
+            # Ajoutez d'autres statistiques si nécessaire
+        })
+    df = pd.DataFrame(data)
+    return df
+
+def generate_pdf_content(dataframe):
+    """
+    Génère le contenu textuel pour un rapport PDF à partir d'un DataFrame.
+    """
+    lines = []
+    for index, row in dataframe.iterrows():
+        line = ', '.join([f"{key}: {value}" for key, value in row.items()])
+        lines.append(line)
+    return lines
