@@ -70,9 +70,9 @@ pyotp
 qrcode
 django-user-sessions
 django-axes
-
+dj_database_url
 django-rest-knox
-pyscard
+#pyscard
 pandas 
 xlsxwriter 
 reportlab

@@ -1,8 +1,0 @@
-# presence/templates/emails/general_message.txt
-
-Bonjour {{ user.first_name }},
-
-{{ message }}
-
-Cordialement,
-L'équipe de Gestion des Présences
