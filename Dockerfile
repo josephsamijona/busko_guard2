@@ -19,4 +19,4 @@ ENV PYTHONUNBUFFERED=1
 ENV DJANGO_SETTINGS_MODULE=core.settings
 ENV PORT=8000
 
-CMD gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+CMD gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
