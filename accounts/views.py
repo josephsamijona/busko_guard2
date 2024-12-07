@@ -14,21 +14,55 @@ from leave.models import Leave,LeaveBalance
 from django.utils import timezone
 from datetime import datetime, timedelta
 from django.db.models import Count, Q
-from accounts.serializers import CustomTokenObtainPairSerializer ,DepartmentSerializer, EmployeeSerializer
+from rest_framework.permissions import AllowAny
+from django.contrib.auth import get_user_model
+from accounts.serializers import CustomTokenObtainPairSerializer ,DepartmentSerializer, EmployeeSerializer,UserSerializer,LoginSerializer
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
-class LogoutView(APIView):
-    permission_classes = (IsAuthenticated,)
+User = get_user_model()
 
-    def post(self, request):
-        try:
-            refresh_token = request.data["refresh"]
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
-        except Exception:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_view(request):
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.validated_data
+        refresh = RefreshToken.for_user(user)
+        
+        # Récupérer l'ID de l'employé si disponible
+        employee_id = None
+        if hasattr(user, 'employee'):
+            employee_id = user.employee.id
+
+        response_data = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data
+        }
+        
+        if employee_id:
+            response_data['employee_id'] = employee_id
+
+        return Response(response_data)
+    
+    return Response(
+        {'error': 'Identifiants invalides'},
+        status=status.HTTP_401_UNAUTHORIZED
+    )
+
+@api_view(['POST'])
+def logout_view(request):
+    try:
+        refresh_token = request.data.get('refresh_token')
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+        return Response({'message': 'Déconnexion réussie'})
+    except Exception:
+        return Response(
+            {'error': 'Token invalide'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
         
 class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Department.objects.all()

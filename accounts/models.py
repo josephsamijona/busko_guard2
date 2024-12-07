@@ -1,25 +1,57 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime, timedelta
+
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.db import models
+
+class CustomUserManager(BaseUserManager):
+    def create_user(self, username, email, password=None, **extra_fields):
+        if not username:
+            raise ValueError('Le nom d\'utilisateur est obligatoire')
+        email = self.normalize_email(email)
+        user = self.model(username=username, email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, username, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_admin', True)
+        return self.create_user(username, email, password, **extra_fields)
 
 class User(AbstractUser):
     phone_number = models.CharField(max_length=20, blank=True)
     is_admin = models.BooleanField(default=False)
     is_employee = models.BooleanField(default=True)
+    email = models.EmailField(unique=True)
 
-    # Ajouter related_name pour éviter les conflits
+    # Relations avec des noms uniques
     groups = models.ManyToManyField(
         'auth.Group',
         related_name='custom_user_set',
         blank=True,
+        verbose_name='groups',
+        help_text='The groups this user belongs to.'
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
         related_name='custom_user_set',
         blank=True,
+        verbose_name='user permissions',
+        help_text='Specific permissions for this user.'
     )
 
+    objects = CustomUserManager()
+
+    class Meta:
+        verbose_name = 'User'
+        verbose_name_plural = 'Users'
+
+    def __str__(self):
+        return self.username
 class Department(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)

@@ -4,7 +4,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.routers import DefaultRouter
 from .views import (
     CustomTokenObtainPairView, 
-    LogoutView,  
+    logout_view,
+    login_view,  
     EmployeeViewSet, 
     DepartmentViewSet,
     get_employee_dashboard,
@@ -19,9 +20,9 @@ router.register(r'departments', DepartmentViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     # Auth endpoints
-    path('auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/login/', login_view, name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('auth/logout/', LogoutView.as_view(), name='auth_logout'),
+    path('auth/logout/', logout_view, name='logout'),
     
     # Dashboard endpoints
     path('dashboard/', get_employee_dashboard, name='employee-dashboard'),
