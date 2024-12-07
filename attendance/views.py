@@ -3,9 +3,9 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from attendance.serializers import AttendanceSerializer,AttendanceStatsSerializer, AttendanceHistorySerializer
+from attendance.serializers import AttendanceSerializer,AttendanceStatsSerializer, AttendanceHistorySerializer,TemporaryQRCodeSerializer
 from accounts.models import Employee, Schedule
-from attendance.models import Attendance
+from attendance.models import Attendance, TemporaryQRCode
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -121,24 +121,35 @@ class CheckOutView(APIView):
                           status=status.HTTP_404_NOT_FOUND)
             
             
-# attendance/views.py
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
-from .serializers import TemporaryQRCodeSerializer, AttendanceSerializer
-from .models import TemporaryQRCode, Attendance
+
 
 class SaveQRCodeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = TemporaryQRCodeSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # L'employé est automatiquement obtenu via l'utilisateur connecté
+            employee = request.user.employee
+            
+            # Création du QR code temporaire
+            qr_code = TemporaryQRCode.objects.create(
+                employee=employee,
+                code=request.data['code'],
+                purpose=request.data['purpose'],
+                expiry=datetime.fromisoformat(request.data['expiry']),
+                is_used=False
+            )
+
+            return Response({
+                'message': 'QR Code créé avec succès',
+                'code': qr_code.code,
+                'expiry': qr_code.expiry
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class AttendanceCheckViewqr(APIView):
     def post(self, request):
