@@ -1,4 +1,5 @@
 # leaves/views.py
+from datetime import datetime
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,6 +8,71 @@ from django.shortcuts import get_object_or_404
 from .models import Leave, LeaveBalance
 from .serializers import LeaveSerializer, LeaveBalanceSerializer
 from django.utils import timezone
+
+
+class LeaveCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            # Récupérer l'employé à partir de l'utilisateur connecté
+            employee = request.user.employee
+            
+            # Parser les dates
+            try:
+                start_date = datetime.strptime(
+                    request.data.get('start_date'), 
+                    '%Y-%m-%d'
+                ).date()
+                end_date = datetime.strptime(
+                    request.data.get('end_date'), 
+                    '%Y-%m-%d'
+                ).date()
+            except (ValueError, TypeError):
+                return Response(
+                    {'error': 'Format de date invalide. Utilisez YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Créer la demande de congé
+            leave = Leave.objects.create(
+                employee=employee,
+                leave_type=request.data.get('leave_type'),
+                start_date=start_date,
+                end_date=end_date,
+                reason=request.data.get('reason', ''),
+                status='PENDING'
+            )
+
+            # Calculer le nombre de jours
+            days_requested = (end_date - start_date).days + 1
+
+            # Sérialiser et renvoyer la réponse
+            serializer = LeaveSerializer(leave)
+            return Response(
+                {
+                    'message': 'Demande de congé créée avec succès',
+                    'leave': serializer.data,
+                    'days_requested': days_requested
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+
+
+
+
+
+
+
 
 class LeaveListCreateView(APIView):
     permission_classes = [IsAuthenticated]

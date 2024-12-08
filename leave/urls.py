@@ -5,11 +5,12 @@ from .views import (
     LeaveDetailView,
     LeaveApproveView,
     LeaveRejectView,
-    LeaveBalanceView
+    LeaveBalanceView,LeaveCreateView
 )
 
 urlpatterns = [
     path('leaves/', LeaveListCreateView.as_view(), name='leave-list-create'),
+    path('leaves/create/', LeaveCreateView.as_view(), name='leave-create'),
     path('leaves/<int:pk>/', LeaveDetailView.as_view(), name='leave-detail'),
     path('leaves/<int:pk>/approve/', LeaveApproveView.as_view(), name='leave-approve'),
     path('leaves/<int:pk>/reject/', LeaveRejectView.as_view(), name='leave-reject'),
