@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'corsheaders',
     'django_redis',
@@ -123,6 +124,39 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(seconds=int(get_env_variable('JWT_REFRESH_TOKEN_LIFETIME'))),
     'SIGNING_KEY': get_env_variable('JWT_SECRET_KEY'),
     'AUTH_HEADER_TYPES': ('Bearer',),
+    
+    # Paramètres pour la blacklist
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
+
+    # Paramètres de sécurité
+    'ALGORITHM': 'HS256',
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+
+    # Paramètres d'authentification
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+
+    # Paramètres des tokens
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    'JTI_CLAIM': 'jti',
+
+    # En-têtes CORS autorisés (si nécessaire)
+    'AUTH_COOKIE': None,  # Nom du cookie JWT si vous utilisez des cookies
+    'AUTH_COOKIE_DOMAIN': None,
+    'AUTH_COOKIE_SECURE': True,
+    'AUTH_COOKIE_HTTP_ONLY': True,
+    'AUTH_COOKIE_PATH': '/',
+    'AUTH_COOKIE_SAMESITE': None,
 }
 
 # CORS Settings

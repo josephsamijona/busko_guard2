@@ -59,28 +59,23 @@ def logout_view(request):
         refresh_token = request.data.get('refresh_token')
         if not refresh_token:
             return Response(
-                {'error': 'Refresh token is required'},
+                {'error': 'Le refresh token est requis'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Création d'un objet token et révocation manuelle
         try:
             token = RefreshToken(refresh_token)
-            # Ajouter le token à la liste noire
             token.blacklist()
             
-            # Nettoyer les tokens existants pour l'utilisateur (optionnel mais recommandé)
-            outstanding_tokens = OutstandingToken.objects.filter(user_id=request.user.id)
-            for token in outstanding_tokens:
-                BlacklistedToken.objects.get_or_create(token=token)
-
-            return Response({
-                'status': 'success',
-                'message': 'User successfully logged out.'
-            })
-            
-        except TokenError as e:
             return Response(
-                {'error': str(e)},
+                {'message': 'Déconnexion réussie'},
+                status=status.HTTP_200_OK
+            )
+            
+        except TokenError:
+            return Response(
+                {'error': 'Le token est invalide ou expiré'},
                 status=status.HTTP_400_BAD_REQUEST
             )
             
