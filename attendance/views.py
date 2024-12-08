@@ -9,9 +9,10 @@ from attendance.models import Attendance, TemporaryQRCode
 from django.db.models import Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
+import uuid
 import calendar
 
-from datetime import datetime
+
 
 class ValidateAttendanceView(APIView):
     def post(self, request):
@@ -131,24 +132,42 @@ class SaveQRCodeView(APIView):
             # L'employé est automatiquement obtenu via l'utilisateur connecté
             employee = request.user.employee
             
-            # Création du QR code temporaire
+            # Génération d'un code unique
+            unique_code = str(uuid.uuid4())
+            
+            # Création du QR code avec timezone
+            expiry = timezone.now() + timezone.timedelta(seconds=30)
+            
+            # Désactiver les anciens QR codes de l'employé
+            TemporaryQRCode.objects.filter(
+                employee=employee,
+                is_used=False,
+                expiry__gt=timezone.now()
+            ).update(is_used=True)
+            
+            # Créer le nouveau QR code
             qr_code = TemporaryQRCode.objects.create(
                 employee=employee,
-                code=request.data['code'],
-                purpose=request.data['purpose'],
-                expiry=datetime.fromisoformat(request.data['expiry']),
+                code=unique_code,
+                purpose='check-in',
+                expiry=expiry,
                 is_used=False
             )
 
             return Response({
+                'status': 'success',
                 'message': 'QR Code créé avec succès',
-                'code': qr_code.code,
-                'expiry': qr_code.expiry
+                'data': {
+                    'code': qr_code.code,
+                    'expiry': qr_code.expiry.isoformat(),
+                    'expiry_seconds': 30
+                }
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({
-                'error': str(e)
+                'status': 'error',
+                'message': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class AttendanceCheckViewqr(APIView):
