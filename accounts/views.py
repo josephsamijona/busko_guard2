@@ -7,10 +7,11 @@ from accounts.models import Department
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from accounts.models import Employee
 from attendance.models import Attendance
 from leave.models import Leave,LeaveBalance
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from django.utils import timezone
 from datetime import datetime, timedelta
 from django.db.models import Count, Q
@@ -52,16 +53,41 @@ def login_view(request):
     )
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def logout_view(request):
     try:
         refresh_token = request.data.get('refresh_token')
-        token = RefreshToken(refresh_token)
-        token.blacklist()
-        return Response({'message': 'Déconnexion réussie'})
-    except Exception:
+        if not refresh_token:
+            return Response(
+                {'error': 'Refresh token is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            token = RefreshToken(refresh_token)
+            # Ajouter le token à la liste noire
+            token.blacklist()
+            
+            # Nettoyer les tokens existants pour l'utilisateur (optionnel mais recommandé)
+            outstanding_tokens = OutstandingToken.objects.filter(user_id=request.user.id)
+            for token in outstanding_tokens:
+                BlacklistedToken.objects.get_or_create(token=token)
+
+            return Response({
+                'status': 'success',
+                'message': 'User successfully logged out.'
+            })
+            
+        except TokenError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    except Exception as e:
         return Response(
-            {'error': 'Token invalide'},
-            status=status.HTTP_400_BAD_REQUEST
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
         
 class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
