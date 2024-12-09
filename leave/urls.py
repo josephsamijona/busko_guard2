@@ -5,7 +5,9 @@ from .views import (
     LeaveDetailView,
     LeaveApproveView,
     LeaveRejectView,
-    LeaveBalanceView,LeaveCreateView
+    LeaveBalanceView,LeaveCreateView,   DashboardStatsView,
+    WeeklyAttendanceStatsView,
+    RecentAlertsView
 )
 
 urlpatterns = [
@@ -15,4 +17,7 @@ urlpatterns = [
     path('leaves/<int:pk>/approve/', LeaveApproveView.as_view(), name='leave-approve'),
     path('leaves/<int:pk>/reject/', LeaveRejectView.as_view(), name='leave-reject'),
     path('leaves/balance/<int:employee_id>/', LeaveBalanceView.as_view(), name='leave-balance'),
+    path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+    path('dashboard/weekly-attendance/', WeeklyAttendanceStatsView.as_view(), name='weekly-attendance'),
+    path('dashboard/alerts/', RecentAlertsView.as_view(), name='recent-alerts'),
 ]
