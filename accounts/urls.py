@@ -44,5 +44,11 @@ urlpatterns = [
     path('departments/', DepartmentListCreateView.as_view(), name='department-list-create'),
     path('departments/<int:pk>/', DepartmentDetailView.as_view(), name='department-detail'),
     path('departments/<int:pk>/stats/', DepartmentStatsView.as_view(), name='department-stats'),
+    ##########################
+    path('employees/create/user/', CreateUserView.as_view(), name='create-user'),
+    path('employees/create/basic-info/', CreateEmployeeBasicInfoView.as_view(), name='create-employee-basic'),
+    path('employees/<int:employee_id>/nfc/', UpdateEmployeeNFCView.as_view(), name='update-employee-nfc'),
+    path('employees/<int:employee_id>/face-id/', UpdateEmployeeFaceIDView.as_view(), name='update-employee-face'),
+    path('employees/validate-nfc/', ValidateNFCIDView.as_view(), name='validate-nfc'),
     
 ]
