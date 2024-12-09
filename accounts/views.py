@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from accounts.models import Employee
+from django.db import transaction
 from attendance.models import Attendance
 from leave.models import Leave,LeaveBalance
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
@@ -17,7 +18,10 @@ from datetime import datetime, timedelta
 from django.db.models import Count, Q
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import get_user_model
-from accounts.serializers import CustomTokenObtainPairSerializer ,EmployeeManagementCreateSerializer, DepartmentManagementSerializer,DepartmentSerializer, EmployeeSerializer,UserSerializer,LoginSerializer,    EmployeeManagementListSerializer
+from accounts.serializers import  EmployeeNFCSerializer,EmployeeFaceIDSerializer,  EmployeeBasicInfoSerializer, CustomTokenObtainPairSerializer ,EmployeeManagementCreateSerializer, DepartmentManagementSerializer,DepartmentSerializer, EmployeeSerializer,UserSerializer,LoginSerializer,    EmployeeManagementListSerializer, DepartmentDetailSerializer, DepartmentCreateUpdateSerializer ,  UserCreationSerializer
+    
+    
+    
     
     
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -363,3 +367,233 @@ class DepartmentManagementViewSet(viewsets.ModelViewSet):
             )
         
         return queryset
+    
+class CreateUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        serializer = UserCreationSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                'user_id': user.id,
+                'message': 'Utilisateur créé avec succès'
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CreateEmployeeBasicInfoView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({
+                'error': 'ID utilisateur requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = EmployeeBasicInfoSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                employee = serializer.save(user_id=user_id)
+                return Response({
+                    'employee_id': employee.id,
+                    'message': 'Informations de base enregistrées'
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({
+                    'error': str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UpdateEmployeeNFCView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def put(self, request, employee_id):
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return Response({
+                'error': 'Employé non trouvé'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = EmployeeNFCSerializer(employee, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'NFC ID enregistré avec succès'
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UpdateEmployeeFaceIDView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def put(self, request, employee_id):
+        try:
+            employee = Employee.objects.get(id=employee_id)
+        except Employee.DoesNotExist:
+            return Response({
+                'error': 'Employé non trouvé'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = EmployeeFaceIDSerializer(employee, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'Face ID enregistré avec succès'
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ValidateNFCIDView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request):
+        nfc_id = request.data.get('nfc_id')
+        if not nfc_id:
+            return Response({
+                'error': 'NFC ID requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        exists = Employee.objects.filter(nfc_id=nfc_id).exists()
+        return Response({
+            'valid': not exists
+        })
+        
+        
+class DepartmentListCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        # Récupérer le paramètre de recherche
+        search_query = request.query_params.get('search', '')
+        ordering = request.query_params.get('ordering', 'name')
+
+        # Construire la requête
+        queryset = Department.objects.all()
+
+        # Appliquer la recherche si un terme est fourni
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |
+                Q(description__icontains=search_query)
+            )
+
+        # Appliquer le tri
+        if ordering:
+            # Vérifier si c'est un tri descendant
+            if ordering.startswith('-'):
+                ordering = ordering[1:]
+                queryset = queryset.order_by(f'-{ordering}')
+            else:
+                queryset = queryset.order_by(ordering)
+
+        serializer = DepartmentDetailSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = DepartmentCreateUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class DepartmentDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_department(self, pk):
+        try:
+            return Department.objects.get(pk=pk)
+        except Department.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        department = self.get_department(pk)
+        if not department:
+            return Response(
+                {'error': 'Département non trouvé'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = DepartmentDetailSerializer(department)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        department = self.get_department(pk)
+        if not department:
+            return Response(
+                {'error': 'Département non trouvé'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = DepartmentCreateUpdateSerializer(
+            department,
+            data=request.data
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk):
+        department = self.get_department(pk)
+        if not department:
+            return Response(
+                {'error': 'Département non trouvé'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = DepartmentCreateUpdateSerializer(
+            department,
+            data=request.data,
+            partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        department = self.get_department(pk)
+        if not department:
+            return Response(
+                {'error': 'Département non trouvé'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Vérifier si le département a des employés
+        if department.employee_set.exists():
+            return Response(
+                {'error': 'Impossible de supprimer un département qui contient des employés'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        department.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class DepartmentStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        department = Department.objects.get(pk=pk)
+        employee_count = department.employee_set.filter(status='ACTIVE').count()
+        
+        # Stats de présence
+        today = timezone.now().date()
+        present_count = department.employee_set.filter(
+            attendance__date=today,
+            attendance__status__in=['PRESENT', 'LATE']
+        ).count()
+        
+        # Stats des congés
+        on_leave_count = department.employee_set.filter(
+            status='ON_LEAVE'
+        ).count()
+
+        stats = {
+            'total_employees': employee_count,
+            'present_today': present_count,
+            'on_leave': on_leave_count,
+            'attendance_rate': (present_count / employee_count * 100) if employee_count > 0 else 0
+        }
+
+        return Response(stats)

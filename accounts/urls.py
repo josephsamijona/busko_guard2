@@ -12,6 +12,14 @@ from .views import (
     DepartmentViewSet,
     get_employee_dashboard,
     get_leave_balance,
+    CreateUserView,
+    CreateEmployeeBasicInfoView,
+    UpdateEmployeeNFCView,
+    UpdateEmployeeFaceIDView,
+    ValidateNFCIDView,
+    DepartmentListCreateView,
+    DepartmentDetailView,
+    DepartmentStatsView,
     get_attendance_status
 )
 
@@ -32,4 +40,9 @@ urlpatterns = [
     path('dashboard/', get_employee_dashboard, name='employee-dashboard'),
     path('leaves/balance/', get_leave_balance, name='leave-balance'),
     path('attendance/status/', get_attendance_status, name='attendance-status'),
+    
+    path('departments/', DepartmentListCreateView.as_view(), name='department-list-create'),
+    path('departments/<int:pk>/', DepartmentDetailView.as_view(), name='department-detail'),
+    path('departments/<int:pk>/stats/', DepartmentStatsView.as_view(), name='department-stats'),
+    
 ]

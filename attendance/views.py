@@ -5,6 +5,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from attendance.serializers import AttendanceSerializer,AttendanceStatsSerializer, AttendanceHistorySerializer,TemporaryQRCodeSerializer
 from accounts.models import Employee, Schedule
+from attendance.serializers import (
+    AttendanceAnalyticsReportSerializer,
+    DepartmentAttendanceAnalyticsSerializer,
+    MonthlyAnalyticsStatsSerializer,
+    EmployeeAttendanceAnalyticsSerializer
+)
+from accounts.models import Employee, Department
 from attendance.models import Attendance, TemporaryQRCode
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -309,3 +316,194 @@ class MonthlyReportView(APIView):
             ).order_by('date')
         }
         return Response(report)
+    
+class DailyAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        date_str = request.query_params.get('date')
+        try:
+            date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else timezone.now().date()
+        except ValueError:
+            return Response(
+                {'error': 'Format de date invalide'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        department_id = request.query_params.get('department')
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search', '').strip()
+
+        queryset = Attendance.objects.filter(date=date)
+
+        if department_id:
+            queryset = queryset.filter(employee__department_id=department_id)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if search:
+            queryset = queryset.filter(
+                Q(employee__user__first_name__icontains=search) |
+                Q(employee__user__last_name__icontains=search) |
+                Q(employee__employee_id__icontains=search)
+            )
+
+        total_employees = Employee.objects.filter(status='ACTIVE').count()
+        total_present = queryset.filter(status='PRESENT').count()
+        total_late = queryset.filter(status='LATE').count()
+        total_absent = total_employees - (total_present + total_late)
+
+        departments = Department.objects.all()
+        department_stats = DepartmentAttendanceAnalyticsSerializer(
+            departments,
+            many=True,
+            context={'date': date}
+        ).data
+
+        attendance_details = AttendanceAnalyticsReportSerializer(
+            queryset,
+            many=True
+        ).data
+
+        return Response({
+            'date': date,
+            'summary': {
+                'total_employees': total_employees,
+                'present': total_present,
+                'late': total_late,
+                'absent': total_absent,
+                'attendance_rate': round(((total_present + total_late) / total_employees * 100), 1)
+            },
+            'department_breakdown': department_stats,
+            'attendance_details': attendance_details
+        })
+
+class MonthlyAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', timezone.now().month))
+        department_id = request.query_params.get('department')
+
+        _, last_day = calendar.monthrange(year, month)
+        departments = Department.objects.all()
+        if department_id:
+            departments = departments.filter(id=department_id)
+
+        daily_stats = []
+        for day in range(1, last_day + 1):
+            date = datetime(year, month, day).date()
+            if date <= timezone.now().date():
+                attendances = Attendance.objects.filter(date=date)
+                total_employees = Employee.objects.filter(
+                    status='ACTIVE',
+                    date_joined__lte=date
+                ).count()
+
+                if total_employees > 0:
+                    present = attendances.filter(status='PRESENT').count()
+                    late = attendances.filter(status='LATE').count()
+                    absent = total_employees - (present + late)
+
+                    department_breakdown = DepartmentAttendanceAnalyticsSerializer(
+                        departments,
+                        many=True,
+                        context={'date': date}
+                    ).data
+
+                    daily_stats.append({
+                        'date': date,
+                        'total_present': present,
+                        'total_late': late,
+                        'total_absent': absent,
+                        'attendance_rate': round(((present + late) / total_employees * 100), 1),
+                        'department_breakdown': department_breakdown
+                    })
+
+        employee_stats = EmployeeAttendanceAnalyticsSerializer(
+            Employee.objects.filter(status='ACTIVE'),
+            many=True,
+            context={'year': year, 'month': month}
+        ).data
+
+        sorted_employees = sorted(
+            employee_stats,
+            key=lambda x: x['attendance_stats']['attendance_rate'],
+            reverse=True
+        )
+
+        return Response({
+            'year': year,
+            'month': month,
+            'daily_stats': daily_stats,
+            'best_attendance': sorted_employees[:5],
+            'worst_attendance': sorted_employees[-5:] if len(sorted_employees) > 5 else []
+        })
+
+class AttendanceTrendsAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        days = int(request.query_params.get('days', 30))
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=days)
+        
+        trends_data = []
+        current_date = start_date
+
+        while current_date <= end_date:
+            attendances = Attendance.objects.filter(date=current_date)
+            total_employees = Employee.objects.filter(
+                status='ACTIVE',
+                date_joined__lte=current_date
+            ).count()
+
+            if total_employees > 0:
+                present = attendances.filter(status='PRESENT').count()
+                late = attendances.filter(status='LATE').count()
+                absent = total_employees - (present + late)
+
+                trends_data.append({
+                    'date': current_date,
+                    'attendance_rate': round(((present + late) / total_employees * 100), 1),
+                    'present': present,
+                    'late': late,
+                    'absent': absent
+                })
+
+            current_date += timedelta(days=1)
+
+        department_trends = []
+        for department in Department.objects.all():
+            dept_attendances = Attendance.objects.filter(
+                date__range=[start_date, end_date],
+                employee__department=department
+            )
+            total_possible = Employee.objects.filter(
+                department=department,
+                status='ACTIVE'
+            ).count() * days
+
+            if total_possible > 0:
+                present_late = dept_attendances.filter(
+                    status__in=['PRESENT', 'LATE']
+                ).count()
+                
+                department_trends.append({
+                    'department': department.name,
+                    'average_attendance': round((present_late / total_possible * 100), 1)
+                })
+
+        return Response({
+            'period': {
+                'start_date': start_date,
+                'end_date': end_date,
+                'days': days
+            },
+            'daily_trends': trends_data,
+            'department_trends': sorted(
+                department_trends,
+                key=lambda x: x['average_attendance'],
+                reverse=True
+            )
+        })

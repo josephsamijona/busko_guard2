@@ -1,7 +1,11 @@
 # attendance/urls.py
 from django.urls import path
 from .views import ValidateAttendanceView,  DailyReportView,AttendanceStatsView,CheckInView, CheckOutView ,AttendanceCheckViewqr,SaveQRCodeView,    AttendanceHistoryView, MonthlyReportView
-   
+from attendance.views import (
+    DailyAnalyticsView,
+    MonthlyAnalyticsView,
+    AttendanceTrendsAnalyticsView
+)
 
 urlpatterns = [
     path('attendance/validate/', ValidateAttendanceView.as_view()),
@@ -13,4 +17,18 @@ urlpatterns = [
     path('attendance/stats/', AttendanceStatsView.as_view(), name='attendance_stats'),
     path('attendance/daily-report/', DailyReportView.as_view(), name='daily_report'),
     path('attendance/monthly-report/', MonthlyReportView.as_view(), name='monthly_report'),
+        # Rapports journaliers
+    path('analytics/daily/', 
+         DailyAnalyticsView.as_view(), 
+         name='attendance-daily-analytics'),
+    
+    # Rapports mensuels
+    path('analytics/monthly/', 
+         MonthlyAnalyticsView.as_view(), 
+         name='attendance-monthly-analytics'),
+    
+    # Tendances
+    path('analytics/trends/', 
+         AttendanceTrendsAnalyticsView.as_view(), 
+         name='attendance-trends-analytics'),
 ]
