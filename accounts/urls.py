@@ -3,6 +3,8 @@ from django.urls import path, include
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.routers import DefaultRouter
 from .views import (
+    EmployeeManagementViewSet,
+    DepartmentManagementViewSet,
     CustomTokenObtainPairView, 
     logout_view,
     login_view,  
@@ -16,6 +18,8 @@ from .views import (
 router = DefaultRouter()
 router.register(r'employees', EmployeeViewSet)
 router.register(r'departments', DepartmentViewSet)
+router.register(r'employee-management', EmployeeManagementViewSet, basename='employee-management')
+router.register(r'department-management', DepartmentManagementViewSet, basename='department-management')
 
 urlpatterns = [
     path('', include(router.urls)),

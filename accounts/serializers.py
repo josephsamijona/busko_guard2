@@ -72,3 +72,81 @@ class LeaveBalanceSerializerr(serializers.ModelSerializer):
 
     def get_remaining(self, obj):
         return obj.remaining_days()
+    
+    
+class EmployeeUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'phone_number')
+
+class DepartmentManagementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Department
+        fields = ('id', 'name', 'description')
+
+class EmployeeManagementListSerializer(serializers.ModelSerializer):
+    user = EmployeeUserSerializer()
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    full_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    
+    class Meta:
+        model = Employee
+        fields = (
+            'id', 
+            'employee_id', 
+            'user',
+            'full_name',
+            'department',
+            'department_name',
+            'position',
+            'status',
+            'gender',
+            'date_joined',
+            'nfc_id',
+            'face_id'
+        )
+
+class EmployeeManagementCreateSerializer(serializers.ModelSerializer):
+    user = EmployeeUserSerializer()
+    
+    class Meta:
+        model = Employee
+        fields = (
+            'id', 
+            'employee_id', 
+            'user',
+            'department',
+            'position',
+            'status',
+            'gender',
+            'date_of_birth',
+            'date_joined',
+            'nfc_id',
+            'face_id'
+        )
+
+    def create(self, validated_data):
+        user_data = validated_data.pop('user')
+        # Créer l'utilisateur
+        user = User.objects.create_user(
+            username=user_data['username'],
+            email=user_data['email'],
+            first_name=user_data['first_name'],
+            last_name=user_data['last_name'],
+            phone_number=user_data.get('phone_number', ''),
+            password='password123'  # Mot de passe temporaire
+        )
+        
+        # Créer l'employé
+        employee = Employee.objects.create(user=user, **validated_data)
+        return employee
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', None)
+        if user_data:
+            user = instance.user
+            for attr, value in user_data.items():
+                setattr(user, attr, value)
+            user.save()
+        
+        return super().update(instance, validated_data)

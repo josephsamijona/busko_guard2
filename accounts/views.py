@@ -17,7 +17,9 @@ from datetime import datetime, timedelta
 from django.db.models import Count, Q
 from rest_framework.permissions import AllowAny
 from django.contrib.auth import get_user_model
-from accounts.serializers import CustomTokenObtainPairSerializer ,DepartmentSerializer, EmployeeSerializer,UserSerializer,LoginSerializer
+from accounts.serializers import CustomTokenObtainPairSerializer ,EmployeeManagementCreateSerializer, DepartmentManagementSerializer,DepartmentSerializer, EmployeeSerializer,UserSerializer,LoginSerializer,    EmployeeManagementListSerializer
+    
+    
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -249,3 +251,115 @@ def get_attendance_status(request):
             'check_in': None,
             'check_out': None
         })
+
+
+class EmployeeManagementViewSet(viewsets.ModelViewSet):
+    queryset = Employee.objects.all()
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return EmployeeManagementCreateSerializer
+        return EmployeeManagementListSerializer
+
+    def get_queryset(self):
+        queryset = Employee.objects.select_related('user', 'department')
+        
+        # Recherche
+        search = self.request.query_params.get('search', '')
+        if search:
+            queryset = queryset.filter(
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search) |
+                Q(employee_id__icontains=search) |
+                Q(position__icontains=search)
+            )
+
+        # Filtrage par département
+        department = self.request.query_params.get('department')
+        if department:
+            queryset = queryset.filter(department_id=department)
+
+        # Filtrage par statut
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+
+        # Tri
+        ordering = self.request.query_params.get('ordering', '-date_joined')
+        if ordering:
+            queryset = queryset.order_by(ordering)
+
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        employee = self.get_object()
+        employee.status = 'ACTIVE'
+        employee.save()
+        return Response({'status': 'employee activated'})
+
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        employee = self.get_object()
+        employee.status = 'INACTIVE'
+        employee.save()
+        return Response({'status': 'employee deactivated'})
+
+    @action(detail=True, methods=['post'])
+    def set_nfc(self, request, pk=None):
+        employee = self.get_object()
+        nfc_id = request.data.get('nfc_id')
+        if not nfc_id:
+            return Response(
+                {'error': 'NFC ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if Employee.objects.filter(nfc_id=nfc_id).exclude(pk=employee.pk).exists():
+            return Response(
+                {'error': 'NFC ID already in use'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        employee.nfc_id = nfc_id
+        employee.save()
+        return Response({'status': 'NFC ID updated'})
+
+    @action(detail=True, methods=['post'])
+    def set_face_id(self, request, pk=None):
+        employee = self.get_object()
+        face_id = request.data.get('face_id')
+        if not face_id:
+            return Response(
+                {'error': 'Face ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if Employee.objects.filter(face_id=face_id).exclude(pk=employee.pk).exists():
+            return Response(
+                {'error': 'Face ID already in use'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        employee.face_id = face_id
+        employee.save()
+        return Response({'status': 'Face ID updated'})
+
+class DepartmentManagementViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.all()
+    serializer_class = DepartmentManagementSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        queryset = Department.objects.all()
+        
+        # Recherche
+        search = self.request.query_params.get('search', '')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
+        return queryset
